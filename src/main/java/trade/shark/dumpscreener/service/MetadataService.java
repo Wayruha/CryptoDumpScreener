@@ -1,35 +1,122 @@
 package trade.shark.dumpscreener.service;
 
+import com.litesoftwares.coingecko.CoinGeckoApiClient;
+import com.litesoftwares.coingecko.domain.Coins.CoinList;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import trade.shark.dumpscreener.config.AppProperties;
 import trade.shark.dumpscreener.domain.NetworkContract;
 import trade.shark.dumpscreener.domain.Token;
+import trade.shark.dumpscreener.domain.TradePair;
+import trade.shark.dumpscreener.enums.Network;
+import trade.wayruha.cryptocompare.domain.AssetSortBy;
+import trade.wayruha.cryptocompare.domain.Exchange;
+import trade.wayruha.cryptocompare.request.PageRequest;
+import trade.wayruha.cryptocompare.response.AssetData;
+import trade.wayruha.cryptocompare.response.ExchangeData;
+import trade.wayruha.cryptocompare.response.InstrumentData;
+import trade.wayruha.cryptocompare.response.InstrumentMapping;
+import trade.wayruha.cryptocompare.service.AssetDataService;
+import trade.wayruha.cryptocompare.service.SpotDataService;
 
-import java.util.List;
-//feel free to remove this class/components if it is not needed
+import javax.sound.midi.Instrument;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 
 //todo it should hold the metadata returned by aggregator API (coingecko?)
+@Service
+@Slf4j
+@RequiredArgsConstructor
 public class MetadataService {
-  //todo cryptocompare metadata holder: Map<NetworkContract, CCAssetInfo> if neeeded
-  //todo coingecko metadata holder: Map<NetworkContract, CGAssetInfo> if needed
+  private static final List<Token> coinsData = new ArrayList<>();
+  private final AppProperties properties;
+  private final CoinGeckoApiClient coinGeckoApiClient;
+  private final AssetDataService assetDataService;
+  private final SpotDataService spotDataService;
+  private final ExecutorService executorService;
 
-  public List<Token> loadSupportedTokens(){
-    //todo load the supported tokens from the coingecko api
-    // do we need to find the
+  public Token resolveTokenByContract(NetworkContract contract) {
     return null;
   }
 
-  public Token resolveTokenByContract(NetworkContract contract) {
-    return new Token();
+  public void fetchCoinsMetadata() throws ExecutionException, InterruptedException {
+    log.debug("refreshing cache");
+    final Future<List<CoinList>> infoFuture = executorService.submit(coinGeckoApiClient::getCoinList);
+    final Future<List<AssetData>> metadataFuture = executorService.submit(() ->
+        assetDataService.iterativelyLoadTopList(AssetSortBy.CIRCULATING_MKT_CAP_USD, PageRequest.unpaged()));
+
+    final List<CoinList> coins = infoFuture.get();
+    final List<Token> tokens = coins.stream().map(coin -> {
+      final Map<String, String> platforms = coin.getPlatforms();
+      final List<NetworkContract> contracts = platforms.keySet().stream().map(key -> {
+        final Network network = Network.getByCgName(key);
+        return Optional.ofNullable(network).map(net -> NetworkContract.of(platforms.get(key), net)).orElse(null);
+      }).toList();
+      return Token.builder()
+          .cgId(coin.getName())
+          .cgSymbol(coin.getSymbol())
+          .tradePairs(new HashMap<>())
+          .contracts(contracts)
+          .build();
+    }).toList();
+    mapAndFetchSymbols(tokens, metadataFuture.get());
   }
 
-  //CryptoCompare Asset Metadata
-  public static class CCAssetInfo{
-    private String id;
-    private String symbol;
+  private void mapAndFetchSymbols(List<Token> tokens, List<AssetData> metadata) {
+    final Map<String, AssetData> assetDataMap = metadata.stream()
+        .flatMap(assetData -> assetData.getSupportedPlatforms().stream()
+            .map(platform -> new AbstractMap.SimpleEntry<>(platform.getSmartContractAddress(), assetData)))
+        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+    tokens.forEach(token -> {
+      for (NetworkContract contract : token.getContracts()) {
+        AssetData assetData = assetDataMap.get(contract.getContractAddress());
+        if (assetData != null) {
+          token.setCcId(assetData.getName());
+          token.setCcSymbol(assetData.getSymbol());
+          break;
+        }
+      }
+    });
+
+    properties.getCexes().forEach(cex -> {
+      //TODO add certain exchange to request
+      final Map<Exchange, ExchangeData> response = spotDataService.getAvailableMarkets(null, List.of());
+      final Optional<ExchangeData> data = Optional.ofNullable(response.get(cex.getExchange()));
+      if (data.isPresent()) {
+        final List<InstrumentMapping> instruments = data.get().getInstruments().values().stream().map(InstrumentData::getInstrumentMapping).toList();
+        instruments.stream()
+            .filter(instrument -> properties.getStableCoins().stream().anyMatch(stableCoin -> stableCoin.equalsIgnoreCase(instrument.getQuote())))
+            .collect(Collectors.groupingBy(InstrumentMapping::getBase))
+            .values()
+            .stream()
+            .map(dupes -> dupes.stream().findFirst())
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .forEach(instrument -> {
+              tokens.stream()
+                  .filter(token -> token.getCcSymbol().equalsIgnoreCase(instrument.getBase()))
+                  .forEach(token -> {
+                    token.getTradePairs().put(cex, new TradePair(instrument.getBase(), instrument.getQuote()));
+                  });
+            });
+      }
+    });
+
+    setTokens(tokens);
+    log.debug("cache updated");
   }
 
-  // CoinGecko Asset Metadata
-  public static class CGAssetInfo{
-    private String id;
-    private String symbol;
+  private void setTokens(List<Token> tokens) {
+    coinsData.clear();
+    coinsData.addAll(tokens);
+  }
+
+  public List<Token> getTokens() {
+    return new ArrayList<>(coinsData);
   }
 }

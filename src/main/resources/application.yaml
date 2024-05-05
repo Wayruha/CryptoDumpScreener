@@ -1,0 +1,13 @@
+spring.application.name: dump-screener
+screener:
+  stableCoins: USDT,USDC
+  cexes: BINANCE
+  networks: ETHEREUM
+  cryptoCompare:
+    apiKey: 0ad56d567c3724cce20251382c73a67384759e3726258c89efe489f392d0e52d
+  coingeco:
+    apiKey: CG-9rRie9kn3qe7nBraTf734zYV
+  detectRate: 1440000
+  dumpPeriod: 30000
+  screeningRate: 5000
+  triggerPercentage: 10

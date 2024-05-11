@@ -24,6 +24,7 @@ public class ApplicationConfig {
 
   @Bean
   public ExecutorService executor() {
+    //todo use more, depending on the CEXes count
     return Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
   }
 
@@ -37,6 +38,14 @@ public class ApplicationConfig {
     final CryptoCompareParams params = new CryptoCompareParams();
     params.setApiKey(properties.getCryptoCompare().getApiKey());
     return new AssetDataService(params);
+  }
+
+  @Bean
+  public SpotDataService spotDataService(AppProperties properties) {
+    //todo initialize it correctly
+    final CryptoCompareParams params = new CryptoCompareParams();
+    params.setApiKey(properties.getCryptoCompare().getApiKey());
+    return new SpotDataService(params);
   }
 
   @Bean

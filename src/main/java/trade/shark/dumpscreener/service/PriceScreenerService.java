@@ -64,10 +64,12 @@ public class PriceScreenerService {
         if (change.compareTo(properties.getTriggerPercentage()) >= 0) {
           log.info(String.format("caught dump for: %s", key));
           final Map<CentralizedExchange, TradePair> exchanges = key.getTradePairs();
+          //todo use CexService.getDollarPrices to get the prices in dollars
           exchanges.keySet().forEach(cex -> {
             final Map<String, InstrumentLatestTick> prices = spotDataService.getLatestTick(cex.getExchange(), List.of(exchanges.get(cex).format()));
             //TODO implement
-            notificationService.sendNotifications();
+              //todo new DumpSignalHandler();
+//            notificationService.sendNotifications();//todo just propagate DumpSignalHandler
           });
         }
       }

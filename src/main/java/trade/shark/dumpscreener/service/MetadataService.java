@@ -59,6 +59,7 @@ public class MetadataService {
       return Token.builder()
           .cgId(coin.getName())
           .cgSymbol(coin.getSymbol())
+          .name(coin.getName())
           .tradePairs(new HashMap<>())
           .contracts(contracts)
           .build();

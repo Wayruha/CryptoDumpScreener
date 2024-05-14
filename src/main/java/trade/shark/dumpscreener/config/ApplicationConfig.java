@@ -9,6 +9,8 @@ import org.springframework.web.reactive.function.client.WebClient;
 import trade.wayruha.cryptocompare.CryptoCompareParams;
 import trade.wayruha.cryptocompare.service.AssetDataService;
 import trade.wayruha.cryptocompare.service.SpotDataService;
+import trade.wayruha.oneinch.OneInchParams;
+import trade.wayruha.oneinch.service.SpotService;
 
 import java.math.MathContext;
 import java.math.RoundingMode;
@@ -46,6 +48,12 @@ public class ApplicationConfig {
     final CryptoCompareParams params = new CryptoCompareParams();
     params.setApiKey(properties.getCryptoCompare().getApiKey());
     return new SpotDataService(params);
+  }
+
+  @Bean
+  public SpotService oneinchSpotService(AppProperties properties) {
+    final OneInchParams params = new OneInchParams(properties.getOneInch().getApiKey());
+    return new SpotService(params);
   }
 
   @Bean

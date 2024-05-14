@@ -18,9 +18,9 @@ public class AppProperties {
   private List<CentralizedExchange> cexes;
   private CoinGeco coingeco;
   private CryptoCompare cryptoCompare;
-  private BigDecimal triggerPercentage;
+  private OneInch oneInch;
   private Long screeningRate;
-  private Long dumpPeriod;
+  private List<Rule> rules;
 
   @Data
   public static class CoinGeco {
@@ -29,5 +29,15 @@ public class AppProperties {
   @Data
   public static class CryptoCompare {
     private String apiKey;
+  }
+  @Data
+  public static class OneInch {
+    private String apiKey;
+  }
+
+  @Data
+  public static class Rule {
+    private BigDecimal triggerPercentage;
+    private Long dumpPeriod;
   }
 }

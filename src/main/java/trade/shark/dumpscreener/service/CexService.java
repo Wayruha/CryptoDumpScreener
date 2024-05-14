@@ -32,7 +32,7 @@ public class CexService {
     }
     try {
       final String symbol = formatTradePair(tradePair);
-      final String formattedExchange = exchange.getExchange().name(); //todo String vs enum
+      final String formattedExchange = exchange.getCcName();
       final Map<String, InstrumentLatestTick> tick = spotDataService.getLatestTick(formattedExchange, List.of(symbol));
       return tick.get(symbol).getLastPrice();
     } catch (Exception ex) {

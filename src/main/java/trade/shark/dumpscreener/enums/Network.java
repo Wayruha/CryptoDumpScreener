@@ -1,16 +1,20 @@
 package trade.shark.dumpscreener.enums;
 
 import lombok.AllArgsConstructor;
+import lombok.Getter;
+import trade.wayruha.oneinch.Chain;
 
 import java.util.stream.Stream;
 
 @AllArgsConstructor
+@Getter
 public enum Network {
-  ETHEREUM("etherium", ""),
-  ARBITRUM("arbitrum", "");
+  ETHEREUM("etherium", "", Chain.ETHEREUM),
+  ARBITRUM("arbitrum", "", Chain.ARBITRUM);
 
-  String cgName;
-  String ccName;
+  final String cgName;
+  final String ccName;
+  final Chain oneInchChain;
 
   public static Network getByCgName(String cgName) {
     return Stream.of(values())

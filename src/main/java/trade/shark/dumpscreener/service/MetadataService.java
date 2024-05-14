@@ -1,5 +1,6 @@
 package trade.shark.dumpscreener.service;
 
+import com.google.common.collect.Lists;
 import com.litesoftwares.coingecko.CoinGeckoApiClient;
 import com.litesoftwares.coingecko.domain.Coins.CoinList;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +21,6 @@ import trade.wayruha.cryptocompare.response.InstrumentMapping;
 import trade.wayruha.cryptocompare.service.AssetDataService;
 import trade.wayruha.cryptocompare.service.SpotDataService;
 
-import javax.sound.midi.Instrument;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -50,12 +50,24 @@ public class MetadataService {
         assetDataService.iterativelyLoadTopList(AssetSortBy.CIRCULATING_MKT_CAP_USD, PageRequest.unpaged()));
 
     final List<CoinList> coins = infoFuture.get();
+    final Future<Map<String, Map<String, Double>>> cgMetadata = executorService.submit(() -> {
+      final Map<String, Map<String, Double>> metadata = new HashMap<>();
+      Lists.partition(coins.stream().map(CoinList::getId).toList(), 300).forEach(sublist -> {
+        Map<String, Map<String, Double>> part = coinGeckoApiClient.getUsdPrice(sublist);
+        metadata.putAll(part);
+      });
+      return metadata;
+    });
+    //TODO populate with cgMetadada and add filters(volume24h, market cap)
     final List<Token> tokens = coins.stream().map(coin -> {
       final Map<String, String> platforms = coin.getPlatforms();
       final List<NetworkContract> contracts = platforms.keySet().stream().map(key -> {
-        final Network network = Network.getByCgName(key);
-        return Optional.ofNullable(network).map(net -> NetworkContract.of(platforms.get(key), net)).orElse(null);
-      }).toList();
+            final Network network = Network.getByCgName(key);
+            final NetworkContract networkContract = Optional.ofNullable(network).map(net -> NetworkContract.of(platforms.get(key), net)).orElse(null);
+            return properties.getNetworks().contains(network) ? networkContract : null;
+          })
+          .filter(Objects::nonNull)
+          .toList();
       return Token.builder()
           .cgId(coin.getName())
           .cgSymbol(coin.getSymbol())
@@ -85,9 +97,8 @@ public class MetadataService {
     });
 
     properties.getCexes().forEach(cex -> {
-      //TODO add certain exchange to request
-      final Map<Exchange, ExchangeData> response = spotDataService.getAvailableMarkets(null, List.of());
-      final Optional<ExchangeData> data = Optional.ofNullable(response.get(cex.getExchange()));
+      final Map<String, ExchangeData> response = spotDataService.getAvailableMarkets(cex.getCcName(), List.of());
+      final Optional<ExchangeData> data = Optional.ofNullable(response.get(cex.getCcName()));
       if (data.isPresent()) {
         final List<InstrumentMapping> instruments = data.get().getInstruments().values().stream().map(InstrumentData::getInstrumentMapping).toList();
         instruments.stream()

@@ -9,6 +9,7 @@ import trade.shark.dumpscreener.domain.CexSpread;
 import trade.shark.dumpscreener.domain.Token;
 import trade.shark.dumpscreener.enums.CentralizedExchange;
 import trade.shark.dumpscreener.event.DumpSignalEvent;
+import trade.shark.dumpscreener.exception.NotificationException;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -24,17 +25,28 @@ public class DumpSignalHandler {
   private final CexService cexService;
   private final NotificationService notificationService;
 
-
   @EventListener
   public void onSignalTriggered(DumpSignalEvent event) {
     log.info("Dump signal triggered: {}", event);
-    final Map<CentralizedExchange, CexSpread> options = loadCexOptions(event.getToken(), event.getCurrentPrice());
-    event.setCexOptions(options);
+    try {
+      final Map<CentralizedExchange, CexSpread> options = loadCexOptions(event.getToken(), event.getCurrentPrice());
+      event.setCexOptions(options);
 
-    notificationService.sendNotifications(event);
+      sendNotifications(event);
+    } catch (Exception ex) {
+      log.error("Error processing dump signal for  {}", event.getToken().getIdentityContract(), ex);
+    }
   }
 
-  public Map<CentralizedExchange, CexSpread> loadCexOptions(Token token, BigDecimal currentPrice) {
+  private void sendNotifications(DumpSignalEvent event) {
+    try {
+      notificationService.sendNotifications(event);
+    } catch (NotificationException ex) {
+      log.error("Error sending notifications for  {}", event.getToken().getIdentityContract(), ex);
+    }
+  }
+
+  private Map<CentralizedExchange, CexSpread> loadCexOptions(Token token, BigDecimal currentPrice) {
     final HashMap<CentralizedExchange, CexSpread> options = new HashMap<>();
     try {
       final Map<CentralizedExchange, BigDecimal> dollarPrices = cexService.getDollarPrices(token, appProperties.getCexes());

@@ -5,5 +5,7 @@ public interface TokenMetadata {
 
   String getName();
 
+  Long deploymentTime();
+
   NetworkContract getIdentityContract();
 }

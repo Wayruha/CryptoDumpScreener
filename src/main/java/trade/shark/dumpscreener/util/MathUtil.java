@@ -13,7 +13,7 @@ public class MathUtil {
   public static final BigDecimal PERCENTAGE_100 = new BigDecimal("100");
   public static final int COIN_QTY_DECIMAL_PRECISION = 4;
   public static final MathContext COIN_SAFE_MC = new MathContext(8, RoundingMode.HALF_DOWN);
-
+  public static final int MILLIS_IN_DAY = 86400000;
 
   public static BigDecimal calculateTotalCost(BigDecimal amount, BigDecimal price) {
     if (isNull(amount) || isNull(price)) return null;
@@ -70,5 +70,9 @@ public class MathUtil {
   public static BigDecimal toBigDecimal(String num) {
     if (StringUtils.isBlank(num)) return null;
     return createBigDecimal(num);
+  }
+
+  public static int calculateAgeInDays(long timestamp) {
+    return (int) ((System.currentTimeMillis() - timestamp) / MILLIS_IN_DAY);
   }
 }

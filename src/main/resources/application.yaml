@@ -9,8 +9,10 @@ screener:
     apiKey: CG-9rRie9kn3qe7nBraTf734zYV
   oneinch:
     apiKey:
+  volume24h: 1000000
+  marketCap: 1000000
   detectRate: 1440000
-  screeningRate: 5000
+  screeningRate: 20000
   rules:
     - dumpPeriod: 30000
       triggerPercentage: 10

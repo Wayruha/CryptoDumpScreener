@@ -19,13 +19,15 @@ import trade.wayruha.oneinch.service.SpotService;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
+import java.time.Duration;
+import java.time.temporal.TemporalUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
 @Slf4j
 public class PriceScreenerService {
-  private static final List<Map<Token, BigDecimal>> priceMaps = new ArrayList<>();
+  private static final List<Map<Pair<Token, NetworkContract>, BigDecimal>> priceMaps = new ArrayList<>();
   private final MetadataService metadataService;
   private final NotificationService notificationService;
   private final SpotDataService spotDataService;
@@ -57,24 +59,28 @@ public class PriceScreenerService {
 
   private void fetchPriceUpdates() {
     final List<Token> tokens = metadataService.getTokens();
-    final Map<Token, BigDecimal> priceMap = new HashMap<>();
-    final Map<Network, List<Pair<Token, String>>> groupedTokens = tokens.stream()
-        .map(token -> {
-          final Optional<NetworkContract> firstNetwork = token.getContracts().stream().findFirst(); // Extract the first network
-          return firstNetwork.map(net -> new AbstractMap.SimpleEntry<>(net.getNetwork(), Pair.of(token, net.getContractAddress()))).orElse(null); // Pair it with the token
-        })
-        .filter(Objects::nonNull)
+    final Map<Pair<Token, NetworkContract>, BigDecimal> priceMap = new HashMap<>();
+//    final Map<Network, List<Pair<Token, String>>> groupedTokens = tokens.stream()
+//        .map(token -> {
+//          final Optional<NetworkContract> firstNetwork = token.getContracts().stream().findFirst(); // Extract the first network
+//          return firstNetwork.map(net -> new AbstractMap.SimpleEntry<>(net.getNetwork(), Pair.of(token, net.getContractAddress()))).orElse(null); // Pair it with the token
+//        })
+//        .filter(Objects::nonNull)
+//        .collect(Collectors.groupingBy(AbstractMap.SimpleEntry::getKey,
+//            Collectors.mapping(AbstractMap.SimpleEntry::getValue, Collectors.toList())));
+    final Map<Network, List<Pair<Token, NetworkContract>>> groupedTokens = tokens.stream()
+        .flatMap(token -> token.getContracts().stream().distinct().map(net -> new AbstractMap.SimpleEntry<>(net.getNetwork(), Pair.of(token, net))))
         .collect(Collectors.groupingBy(AbstractMap.SimpleEntry::getKey,
             Collectors.mapping(AbstractMap.SimpleEntry::getValue, Collectors.toList())));
     groupedTokens.forEach((key, value) -> {
-      Lists.partition(value, 5100).forEach(sublist -> {
-        final List<String> contracts = sublist.stream().map(Pair::getRight).toList();
+      Lists.partition(value, 10000).forEach(sublist -> {
+        final List<String> contracts = sublist.stream().map(Pair::getRight).map(NetworkContract::getContractAddress).toList();
         final Map<String, BigDecimal> prices = oneInchSpotService.getTokenDollarPrices(key.getOneInchChain(), contracts);
         sublist.forEach(pair -> {
-          String contract = pair.getRight();
+          String contract = pair.getRight().getContractAddress();
           BigDecimal price = prices.get(contract);
           if (price != null) {
-            priceMap.put(pair.getLeft(), price);
+            priceMap.put(pair, price);
           }
         });
       });
@@ -92,8 +98,8 @@ public class PriceScreenerService {
   }
 
   private void detectByRule(AppProperties.Rule rule) {
-    final Map<Token, BigDecimal> old = getOldPriceMapForRule(rule);
-    final Map<Token, BigDecimal> current = priceMaps.getLast();
+    final Map<Pair<Token, NetworkContract>, BigDecimal> old = getOldPriceMapForRule(rule);
+    final Map<Pair<Token, NetworkContract>, BigDecimal> current = priceMaps.getLast();
 
     old.keySet().forEach(key -> {
       final BigDecimal oldPrice = old.get(key);
@@ -102,9 +108,16 @@ public class PriceScreenerService {
         final BigDecimal change = oldPrice.divide(new BigDecimal(100), mathContext).multiply(currentPrice.subtract(oldPrice), mathContext).negate();
         if (change.compareTo(rule.getTriggerPercentage()) >= 0) {
           log.info(String.format("caught dump for: %s", key));
-          final Map<CentralizedExchange, TradePair> exchanges = key.getTradePairs();
-          final Map<CentralizedExchange, BigDecimal> prices = cexService.getDollarPrices(key, exchanges.keySet());
-          final DumpSignalEvent event = new DumpSignalEvent();
+          final Map<CentralizedExchange, TradePair> exchanges = key.getLeft().getTradePairs();
+          final Map<CentralizedExchange, BigDecimal> prices = cexService.getDollarPrices(key.getLeft(), exchanges.keySet());
+          final DumpSignalEvent event = new DumpSignalEvent(
+              key.getLeft(),
+              key.getRight().getNetwork(),
+              currentPrice,
+              currentPrice.subtract(oldPrice),
+              change,
+              Duration.ofMillis(rule.getDumpPeriod()));
+          eventPublisher.publishEvent(event);
           //TODO remove after tests
 //          exchanges.keySet().forEach(cex -> {
 //            final Map<String, InstrumentLatestTick> prices = spotDataService.getLatestTick(cex.getExchange(), List.of(exchanges.get(cex).format()));
@@ -117,7 +130,7 @@ public class PriceScreenerService {
     });
   }
 
-  public Map<Token, BigDecimal> getOldPriceMapForRule(AppProperties.Rule rule) {
+  public Map<Pair<Token, NetworkContract>, BigDecimal> getOldPriceMapForRule(AppProperties.Rule rule) {
     int index = Math.max(0, priceMaps.size() - (int) (rule.getDumpPeriod() / properties.getScreeningRate()));
     return priceMaps.get(Math.min(index, priceMaps.size() - 1));
   }

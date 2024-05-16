@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.function.client.WebClient;
 import trade.wayruha.cryptocompare.CryptoCompareParams;
+import trade.wayruha.cryptocompare.client.CryptoCompareClient;
 import trade.wayruha.cryptocompare.service.AssetDataService;
 import trade.wayruha.cryptocompare.service.SpotDataService;
 import trade.wayruha.oneinch.OneInchParams;
@@ -44,10 +45,10 @@ public class ApplicationConfig {
 
   @Bean
   public SpotDataService spotDataService(AppProperties properties) {
-    //todo initialize it correctly
     final CryptoCompareParams params = new CryptoCompareParams();
     params.setApiKey(properties.getCryptoCompare().getApiKey());
-    return new SpotDataService(params);
+    final CryptoCompareClient client = new CryptoCompareClient(params);
+    return new SpotDataService(client);
   }
 
   @Bean

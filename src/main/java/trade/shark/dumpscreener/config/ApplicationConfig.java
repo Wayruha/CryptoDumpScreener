@@ -1,5 +1,7 @@
 package trade.shark.dumpscreener.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.litesoftwares.coingecko.ApiKey;
 import com.litesoftwares.coingecko.CoinGeckoApiClient;
 import com.litesoftwares.coingecko.impl.CoinGeckoApiClientImpl;
@@ -44,11 +46,19 @@ public class ApplicationConfig {
   }
 
   @Bean
-  public SpotDataService spotDataService(AppProperties properties) {
+  public SpotDataService spotDataService(CryptoCompareClient client) {
+    return new SpotDataService(client);
+  }
+
+  @Bean
+  public static CryptoCompareClient getCryptoCompareClient(AppProperties properties) {
     final CryptoCompareParams params = new CryptoCompareParams();
     params.setApiKey(properties.getCryptoCompare().getApiKey());
-    final CryptoCompareClient client = new CryptoCompareClient(params);
-    return new SpotDataService(client);
+
+    final ObjectMapper objectMapper = new ObjectMapper();
+    objectMapper.setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
+    final CryptoCompareClient client = new CryptoCompareClient(params, objectMapper);
+    return client;
   }
 
   @Bean
@@ -61,8 +71,4 @@ public class ApplicationConfig {
   public MathContext mathContext() {
     return new MathContext(7, RoundingMode.FLOOR);
   }
-//  @Bean
-//  public SpotDataService spotDataService() {
-//    return new SpotDataService();
-//  }
 }

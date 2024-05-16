@@ -1,6 +1,8 @@
 package trade.shark.dumpscreener.domain;
 
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.ToString;
 import trade.shark.dumpscreener.enums.Network;
 
 import java.util.Map;
@@ -9,6 +11,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import static java.util.Objects.requireNonNull;
 
 @Getter
+@EqualsAndHashCode
+@ToString
 public class NetworkContract {
   private static final Map<String, NetworkContract> CONTRACTS_CACHE = new ConcurrentHashMap<>();
 
@@ -29,4 +33,12 @@ public class NetworkContract {
     requireNonNull(network);
     return CONTRACTS_CACHE.computeIfAbsent(contractAddress + network, key -> new NetworkContract(contractAddress, network));
   }
+
+  public String getContractAddress() {
+    if (contractAddress == null) {
+      return null;
+    }
+    return contractAddress.toUpperCase();
+  }
+
 }

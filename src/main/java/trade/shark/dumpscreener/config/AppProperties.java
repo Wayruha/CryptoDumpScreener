@@ -21,8 +21,8 @@ public class AppProperties {
   private OneInch oneInch;
   private Long screeningRate;
   private List<Rule> rules;
-  private Long volume24h;
-  private Long marketCap;
+  private BigDecimal volume24h;
+  private BigDecimal marketCap;
 
   @Data
   public static class CoinGeco {

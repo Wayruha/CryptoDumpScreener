@@ -9,8 +9,8 @@ import java.util.stream.Stream;
 @AllArgsConstructor
 @Getter
 public enum Network {
-  ETHEREUM("ethereum", "", Chain.ETHEREUM),
-  ARBITRUM("arbitrum", "", Chain.ARBITRUM);
+  ETHEREUM("ethereum", "ETH", Chain.ETHEREUM),
+  ARBITRUM("arbitrum", "ARB", Chain.ARBITRUM);
 
   final String cgName;
   final String ccName;

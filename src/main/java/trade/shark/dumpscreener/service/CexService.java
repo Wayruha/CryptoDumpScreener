@@ -2,11 +2,12 @@ package trade.shark.dumpscreener.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import trade.shark.dumpscreener.domain.Token;
 import trade.shark.dumpscreener.domain.TradePair;
 import trade.shark.dumpscreener.enums.CentralizedExchange;
-import trade.wayruha.cryptocompare.response.InstrumentLatestTick;
+import trade.wayruha.cryptocompare.response.SpotInstrumentLatestTick;
 import trade.wayruha.cryptocompare.service.SpotDataService;
 
 import java.math.BigDecimal;
@@ -23,23 +24,6 @@ import java.util.concurrent.Future;
 public class CexService {
   private final SpotDataService spotDataService;
   private final ExecutorService executorService;
-
-  public BigDecimal getDollarPrice(Token token, CentralizedExchange exchange) {
-    final TradePair tradePair = token.getTradePairs().get(exchange);
-    if (tradePair == null) {
-      //token is not traded on the exchange
-      return null;
-    }
-    try {
-      final String symbol = formatTradePair(tradePair);
-      final String formattedExchange = exchange.getCcName();
-      final Map<String, InstrumentLatestTick> tick = spotDataService.getLatestTick(formattedExchange, List.of(symbol));
-      return tick.get(symbol).getLastPrice();
-    } catch (Exception ex) {
-      log.error("Error getting price for token {} on exchange {}", token, exchange, ex);
-      return null;
-    }
-  }
 
   /**
    * Fetch prices in parallel for multiple exchanges
@@ -60,6 +44,28 @@ public class CexService {
       }
     });
     return result;
+  }
+
+  public BigDecimal getDollarPrice(Token token, CentralizedExchange exchange) {
+    final TradePair tradePair = token.getTradePairs().get(exchange);
+    if (tradePair == null) {
+      //token is not traded on the exchange
+      return null;
+    }
+    return getDollarPrice(tradePair, exchange);
+  }
+
+  @Nullable
+  private BigDecimal getDollarPrice(TradePair tradePair, CentralizedExchange exchange) {
+    try {
+      final String symbol = formatTradePair(tradePair);
+      final String formattedExchange = exchange.getCcName();
+      final Map<String, SpotInstrumentLatestTick> tick = spotDataService.getLatestTick(formattedExchange, List.of(symbol));
+      return tick.get(symbol).getPrice();
+    } catch (Exception ex) {
+      log.error("Error getting price for token {} on exchange {}", tradePair, exchange, ex);
+      return null;
+    }
   }
 
   /**

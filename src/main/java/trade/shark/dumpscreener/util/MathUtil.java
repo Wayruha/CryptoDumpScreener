@@ -61,10 +61,10 @@ public class MathUtil {
         .subtract(PERCENTAGE_100);
   }
 
-  public static float calculateDeviation(BigDecimal n1, BigDecimal n2) {
+  public static BigDecimal calculateDeviation(BigDecimal n1, BigDecimal n2) {
     final BigDecimal max = n1.max(n2);
     final BigDecimal min = n1.min(n2);
-    return max.subtract(min).divide(max, 3, RoundingMode.HALF_UP).floatValue();
+    return max.subtract(min).divide(max, 3, RoundingMode.HALF_UP);
   }
 
   public static BigDecimal toBigDecimal(String num) {

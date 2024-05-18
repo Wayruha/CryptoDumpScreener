@@ -4,11 +4,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
+import trade.shark.dumpscreener.DumpScreenerApplication;
 import trade.shark.dumpscreener.config.AppProperties;
 import trade.shark.dumpscreener.domain.CexSpread;
 import trade.shark.dumpscreener.domain.Token;
 import trade.shark.dumpscreener.enums.CentralizedExchange;
 import trade.shark.dumpscreener.event.DumpSignalEvent;
+import trade.shark.dumpscreener.event.MetadataRefreshedEvent;
 import trade.shark.dumpscreener.exception.NotificationException;
 
 import java.math.BigDecimal;
@@ -20,10 +22,10 @@ import static trade.shark.dumpscreener.util.MathUtil.calculateSpread;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class DumpSignalHandler {
+public class EventHandler {
   private final AppProperties appProperties;
   private final CexService cexService;
-  private final NotificationService notificationService;
+  private final TgNotificationService notificationService;
 
   @EventListener
   public void onSignalTriggered(DumpSignalEvent event) {
@@ -32,14 +34,28 @@ public class DumpSignalHandler {
       final Map<CentralizedExchange, CexSpread> options = loadCexOptions(event.getToken(), event.getCurrentPrice());
       event.setCexOptions(options);
 
-      sendNotifications(event);
+      sendSignalNotifications(event);
     } catch (Exception ex) {
       log.error("Error processing dump signal for  {}", event.getToken().getIdentityContract(), ex);
     }
   }
 
-  private void sendNotifications(DumpSignalEvent event) {
+  @EventListener
+  public void handleMetadataRefreshed(MetadataRefreshedEvent event) {
     try {
+      final String text = String.format("Metadata refreshed in %dsec. Supported tokens: %d", event.getTimeSpend().getSeconds(), event.getSupportedTokens().size());
+      DumpScreenerApplication.CLI_LOG.info(text);
+      notificationService.sendNotification(text);
+    } catch (Exception ex) {
+      log.error("Error processing {}", event, ex);
+    }
+  }
+
+  private void sendSignalNotifications(DumpSignalEvent event) {
+    try {
+      final String displayText = TgNotificationService.toTgDisplayText(event);
+      DumpScreenerApplication.CLI_LOG.info(displayText);
+
       notificationService.sendNotifications(event);
     } catch (NotificationException ex) {
       log.error("Error sending notifications for  {}", event.getToken().getIdentityContract(), ex);

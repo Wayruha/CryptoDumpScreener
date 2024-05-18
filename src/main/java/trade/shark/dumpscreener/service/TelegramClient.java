@@ -30,10 +30,9 @@ public class TelegramClient extends TelegramLongPollingBot {
   private final TelegramConfig config;
 
   @SneakyThrows
-  public TelegramClient(TelegramConfig config, AppProperties properties) {
+  public TelegramClient(TelegramConfig config) {
     requireNonNull(config.getApiToken());
     requireNonNull(config.getNotificationChatId());
-    requireNonNull(config.getControlChatId());
     this.config = config;
   }
 
@@ -59,9 +58,7 @@ public class TelegramClient extends TelegramLongPollingBot {
       if (!Objects.equals(chatId, config.getNotificationChatId())) {
         log.warn("Got an update from unknown chat: {}", update);
       }
-      return;
     }
-    //doing nothing as for now
   }
 
   private boolean processAction(SendMessage action) {

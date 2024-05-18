@@ -7,7 +7,6 @@ import com.litesoftwares.coingecko.CoinGeckoApiClient;
 import com.litesoftwares.coingecko.impl.CoinGeckoApiClientImpl;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.reactive.function.client.WebClient;
 import trade.wayruha.cryptocompare.CryptoCompareParams;
 import trade.wayruha.cryptocompare.client.CryptoCompareClient;
 import trade.wayruha.cryptocompare.service.AssetDataService;
@@ -22,20 +21,16 @@ import java.util.concurrent.Executors;
 
 @Configuration
 public class ApplicationConfig {
-  @Bean
-  public WebClient webClient() {
-    return WebClient.create();
-  }
 
   @Bean
   public ExecutorService executor() {
     //todo use more, depending on the CEXes count
-    return Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+    return Executors.newFixedThreadPool(4);
   }
 
   @Bean
   public CoinGeckoApiClient coinGeckoApiClient(AppProperties properties) {
-    return new CoinGeckoApiClientImpl(new ApiKey(properties.getCoingeco().getApiKey(), false));
+    return new CoinGeckoApiClientImpl(new ApiKey(properties.getCoingecko().getApiKey(), false));
   }
 
   @Bean

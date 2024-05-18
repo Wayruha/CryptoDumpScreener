@@ -14,7 +14,7 @@ import static trade.shark.dumpscreener.util.MathUtil.getFormattedSpread;
 
 @Service
 @Slf4j
-public class NotificationService {
+public class TgNotificationService {
   private static final String DEX_1inch = "1inch";
   private static final String SIGNAL_MSG_TEMPLATE = """
       __${symbol}/${priceChangePercent}__
@@ -32,21 +32,17 @@ public class NotificationService {
 
   private final TelegramClient telegram;
 
-  public NotificationService(Optional<TelegramClient> telegram) {
+  public TgNotificationService(Optional<TelegramClient> telegram) {
     this.telegram = telegram.orElse(null);
     telegram.ifPresent(t -> log.info("NotificationService is enabled: telegram"));
   }
 
   public void sendNotifications(DumpSignalEvent event) {
-    try {
-      final String text = toMessageText(event);
-      telegram.sendNotification(text);
-    } catch (Exception ex) {
-      throw new NotificationException(ex);
-    }
+    final String text = toTgDisplayText(event);
+    sendNotification(text);
   }
 
-  private static String toMessageText(DumpSignalEvent event) {
+  public static String toTgDisplayText(DumpSignalEvent event) {
     StringBuilder bldr = new StringBuilder();
     bldr.append(SIGNAL_MSG_TEMPLATE.replace("${symbol}", event.getToken().getSymbol())
         .replace("${priceChangePercent}", getFormattedSpread(event.getChangePercentage()))
@@ -62,6 +58,14 @@ public class NotificationService {
           .replace("${spread}", getFormattedSpread(spread.getSpreadPercentage())));
     });
     return bldr.toString();
+  }
+
+  public void sendNotification(String text) {
+    try {
+      telegram.sendNotification(text);
+    } catch (Exception ex) {
+      throw new NotificationException(ex);
+    }
   }
 
 }

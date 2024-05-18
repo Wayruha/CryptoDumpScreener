@@ -1,18 +1,26 @@
 spring.application.name: dump-screener
 screener:
   stableCoins: USDT,USDC
-  cexes: BINANCE
+  cexes: BINANCE,KUCOIN,GATE,OKX,BITMART,HUOBI
   networks: ETHEREUM
   cryptoCompare:
     apiKey: 0ad56d567c3724cce20251382c73a67384759e3726258c89efe489f392d0e52d
-  coingeco:
+  coingecko:
     apiKey: CG-9rRie9kn3qe7nBraTf734zYV
   oneinch:
-    apiKey:
-  volume24h: 1000000
-  marketCap: 1000000
-  detectRate: 1440000
-  screeningRate: 20000
+    apiKey: oqagjMHTInwzd41tqUQWWy4fkwjHvET1
+  volume24h: 100000
+  marketCap: 100000
+  metadataUpdateRateSec: 86400
+  screeningRateSec: 20
+  initialDelaySec: 20
   rules:
-    - dumpPeriod: 30000
-      triggerPercentage: 10
+    - timeWindowSec: 40
+      triggerPercentage: 3
+    - timeWindowSec: 60
+      triggerPercentage: 7
+
+telegram:
+  apiToken: 7146472736:AAEhPWTtW4lYRymXvNMoQkm5Sa9Fd1PEKrs
+  notificationChatId: -4134327101
+#  controlChatId: 262136148

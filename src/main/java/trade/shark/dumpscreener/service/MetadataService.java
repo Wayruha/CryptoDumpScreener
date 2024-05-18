@@ -3,14 +3,18 @@ package trade.shark.dumpscreener.service;
 import com.litesoftwares.coingecko.CoinGeckoApiClient;
 import com.litesoftwares.coingecko.domain.Coins.CoinList;
 import com.litesoftwares.coingecko.domain.Coins.CoinPriceData;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import trade.shark.dumpscreener.config.AppProperties;
 import trade.shark.dumpscreener.domain.NetworkContract;
 import trade.shark.dumpscreener.domain.Token;
 import trade.shark.dumpscreener.domain.TradePair;
 import trade.shark.dumpscreener.enums.Network;
+import trade.shark.dumpscreener.event.MetadataRefreshedEvent;
 import trade.wayruha.cryptocompare.domain.AssetSortBy;
 import trade.wayruha.cryptocompare.request.PageRequest;
 import trade.wayruha.cryptocompare.response.AssetData;
@@ -20,6 +24,8 @@ import trade.wayruha.cryptocompare.response.InstrumentMapping;
 import trade.wayruha.cryptocompare.service.AssetDataService;
 import trade.wayruha.cryptocompare.service.SpotDataService;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -40,36 +46,63 @@ import java.util.stream.Collectors;
 public class MetadataService {
   private static final int CG_REQUEST_LENGTH_THRESHOLD = 5000;
 
-  private static final List<Token> coinsData = new ArrayList<>();
   private final AppProperties properties;
   private final CoinGeckoApiClient coinGeckoApiClient;
   private final AssetDataService assetDataService;
   private final SpotDataService spotDataService;
   private final ExecutorService executorService;
-
-  public Token resolveTokenByContract(NetworkContract contract) {
-    return null;
-  }
+  private final ApplicationEventPublisher eventPublisher;
+  private final List<Token> coinsData = new ArrayList<>();
+  @Getter
+  private LocalDateTime lastUpdate;
+  //duplication of data for easy access
+  private final Map<NetworkContract, Token> duplicateCoinsMap = new HashMap<>();
+  private final Map<Network, List<NetworkContract>> contractsByNetworkMap = new HashMap<>();
 
   public void fetchCoinsMetadata() throws ExecutionException, InterruptedException {
-    log.debug("refreshing cache");
-    final Future<List<CoinList>> infoFuture = executorService.submit(coinGeckoApiClient::getCoinList);
+    final LocalDateTime start = LocalDateTime.now();
+    log.debug("Refreshing cache");
+    final Future<List<CoinList>> cgCoinsListFuture = executorService.submit(coinGeckoApiClient::getCoinList);
     final Future<List<AssetData>> ccMetadataFuture = executorService.submit(() ->
         assetDataService.iterativelyLoadTopList(AssetSortBy.CIRCULATING_MKT_CAP_USD, PageRequest.unpaged()));
+    final List<CoinList> coins = cgCoinsListFuture.get();
+    final Map<String, CoinPriceData> cgMetadata = getCgMetadata(coins); //todo sublist for quicker development
+    final List<Token> chainSupportedTokens = buildTokenData(coins);
+    final List<Token> filteredTokens = filterTokens(chainSupportedTokens, cgMetadata);
 
-    final List<CoinList> coins = infoFuture.get();
-    log.debug("total fetched coin list size {}", coins.size());
-//    final Future<Map<String, Map<String, Double>>> cgMetadata = executorService.submit(() -> {
-//      final Map<String, Map<String, Double>> metadata = new HashMap<>();
-//      Lists.partition(coins.stream().map(CoinList::getId).toList(), 300).forEach(sublist -> {
-//        Map<String, Map<String, Double>> part = coinGeckoApiClient.getUsdPrice(sublist);
-//        metadata.putAll(part);
-//      });
-//      return metadata;
-//    });
-    log.debug("Fetching CoinGecko metadata for {} items", coins.stream());
-    final Map<String, CoinPriceData> cgMetadata = getCgMetadata(coins.subList(0, 100)); //todo sublist for quicker development
-    log.debug("Fetched CoinGecko metadata: {} items", cgMetadata.size());
+    log.debug("Tokens Filtered: {}. Existing on chains: {}. Supported by CoinGecko: {}.", filteredTokens.size(), coins.size(), chainSupportedTokens.size());
+    populateCryptoCompareIds(filteredTokens, ccMetadataFuture.get());
+    populateTradePair(filteredTokens);
+
+    updateMetadata(filteredTokens);
+    eventPublisher.publishEvent(new MetadataRefreshedEvent(filteredTokens, Duration.between(start, lastUpdate)));
+    log.debug("Cache updated!");
+  }
+
+  public Token getTokenByContract(NetworkContract contract) {
+    if (contract == null) return null;
+    return duplicateCoinsMap.get(contract);
+  }
+
+  public List<NetworkContract> getContractsByNetwork(Network network) {
+    return contractsByNetworkMap.get(network);
+  }
+
+  private void updateMetadata(List<Token> filteredTokens) {
+    this.lastUpdate = LocalDateTime.now();
+    this.coinsData.clear();
+    this.coinsData.addAll(filteredTokens);
+    this.duplicateCoinsMap.clear();
+    filteredTokens.forEach(token ->
+        token.getContracts().forEach(contract -> this.duplicateCoinsMap.put(contract, token))
+    );
+    this.contractsByNetworkMap.clear();
+    final Map<Network, List<NetworkContract>> contractsByNetwork = filteredTokens.stream().flatMap(token -> token.getContracts().stream()).collect(Collectors.groupingBy(NetworkContract::getNetwork));
+    this.contractsByNetworkMap.putAll(contractsByNetwork);
+  }
+
+  @NotNull
+  private List<Token> buildTokenData(List<CoinList> coins) {
     final List<Token> tokens = coins.stream()
         .map(coin -> {
           final Map<String, String> platforms = coin.getPlatforms();
@@ -90,14 +123,7 @@ public class MetadataService {
         })
         .filter(Objects::nonNull)
         .toList();
-
-    log.debug("tokens selected: {}", tokens.size());
-    final List<Token> filteredTokens = filterTokens(tokens, cgMetadata);
-    populateCryptoCompareIds(filteredTokens, ccMetadataFuture.get());
-    populateTradePair(filteredTokens);
-    coinsData.clear();
-    coinsData.addAll(filteredTokens);
-    log.debug("cache updated");
+    return tokens;
   }
 
   private Map<String, CoinPriceData> getCgMetadata(List<CoinList> coins) throws InterruptedException {
@@ -153,17 +179,11 @@ public class MetadataService {
     return filteredTokens;
   }
 
-  // todo bug: not all tokens have ccSymbol (CC has less tokens then CG).
-  // QUESTION:if CC does not have a token, does it mean that CEXes (supported by CC) has it.
-  // We need to know exactly if this is possible (look at the total number of tokens supported by CC to reason about it.
-  //   As for now we can skip trade pair population for such tokens.
-  // UPDATE: Verify if such token exist (should be fixed)
-  //TODO bug#2. ZRX - present on CG but ccSymbol is null (THOUGH it's supported on CC). How is this possible? -- update FIXED, please verify
   private void populateTradePair(List<Token> tokens) {
     long start = System.currentTimeMillis();
     properties.getCexes().forEach(cex -> {
       final Map<String, ExchangeData> availableMarkets = spotDataService.getAvailableMarkets(cex.getCcName(), List.of());
-      if(!availableMarkets.containsKey(cex.getCcName())) return;
+      if (!availableMarkets.containsKey(cex.getCcName())) return;
       final ExchangeData data = availableMarkets.get(cex.getCcName());
       final List<InstrumentMapping> instruments = data.getInstruments().values().stream().map(InstrumentData::getInstrumentMapping).toList();
       instruments.stream()
@@ -176,13 +196,15 @@ public class MetadataService {
           .map(Optional::get)
           .forEach(instrument -> {
             tokens.stream()
-                .filter(token -> token.getCcSymbol().equalsIgnoreCase(instrument.getBase()))
+                .filter(token -> instrument.getBase().equalsIgnoreCase(token.getCcSymbol()))
                 .forEach(token -> {
                   token.getTradePairs().put(cex, new TradePair(instrument.getBase(), instrument.getQuote()));
                 });
           });
     });
-    log.debug("Fetch USD trade pair for every CEX: {} items, {}ms", tokens.size(), System.currentTimeMillis() - start);
+    log.debug("Fetched USD trade pair for every CEX: {} items, {}ms", tokens.size(), System.currentTimeMillis() - start);
+    final long count = tokens.stream().filter(t -> t.getCcSymbol() == null).count();
+    log.debug("Tokens without cryptoCompareSymbol: {}", count);
   }
 
   private static void populateCryptoCompareIds(List<Token> tokens, List<AssetData> metadata) {
@@ -201,11 +223,12 @@ public class MetadataService {
           .filter(Objects::nonNull)
           .findFirst()
           .ifPresent(assetData -> {
+            token.setDeploymentTime(assetData.getLaunchDate());
             token.setCcId(assetData.getName());
             token.setCcSymbol(assetData.getSymbol());
           });
     });
-    log.debug("populated assets with CryptoCompare metadata: {} items, {}ms", tokens.size(), System.currentTimeMillis() - start);
+    log.debug("Supported by CryptoCompare: {} items, {}ms", tokens.size(), System.currentTimeMillis() - start);
   }
 
   public List<Token> getTokens() {

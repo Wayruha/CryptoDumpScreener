@@ -2,12 +2,15 @@ package trade.shark.dumpscreener.enums;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import trade.wayruha.cryptocompare.domain.Exchange;
-import trade.wayruha.oneinch.Chain;
 
 @RequiredArgsConstructor
 public enum CentralizedExchange {
-  BINANCE("Binance", "binance");
+  BINANCE("Binance", "binance"),
+  OKX("Okx", "okex"),
+  BITMART("Bitmart", "bitmart"),
+  KUCOIN("Kucoin", "kucoin"),
+  HUOBI("Huobi", "huobipro"),
+  GATE("Gate", "gateio");
 
   @Getter
   private final String name;

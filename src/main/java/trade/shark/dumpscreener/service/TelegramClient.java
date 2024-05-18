@@ -7,12 +7,12 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.TelegramBotsApi;
+import org.telegram.telegrambots.meta.api.methods.ParseMode;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 import trade.shark.dumpscreener.DumpScreenerApplication;
-import trade.shark.dumpscreener.config.AppProperties;
 import trade.shark.dumpscreener.config.TelegramConfig;
 
 import java.util.Objects;
@@ -43,9 +43,10 @@ public class TelegramClient extends TelegramLongPollingBot {
     botsApi.registerBot(this);
   }
 
-  public boolean sendNotification(String text) {
+  public boolean sendNotification(String text, boolean markdownMode) {
     if (text == null || text.isBlank()) return false;
     final SendMessage action = new SendMessage(String.valueOf(config.getNotificationChatId()), text);
+    action.setParseMode(markdownMode ? ParseMode.MARKDOWN : ParseMode.HTML);
     return processAction(action);
   }
 

@@ -7,6 +7,7 @@ import lombok.ToString;
 import trade.shark.dumpscreener.enums.CentralizedExchange;
 import trade.shark.dumpscreener.enums.Network;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -14,12 +15,14 @@ import java.util.Map;
 @Builder
 @EqualsAndHashCode
 public class Token implements TokenMetadata {
-  private String cgId;
+  private String coingeckoId;
   private String cgSymbol;
   private String ccId;
   private String ccSymbol;
   private String name;
-  private Long deploymentTime; //todo populate
+  private Long deploymentTime;
+  private BigDecimal marketCap;
+  private BigDecimal usdVolume24H;
   @EqualsAndHashCode.Exclude
   @ToString.Exclude
   private Map<CentralizedExchange, TradePair> tradePairs;

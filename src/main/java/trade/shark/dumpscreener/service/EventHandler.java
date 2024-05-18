@@ -10,6 +10,7 @@ import trade.shark.dumpscreener.domain.CexSpread;
 import trade.shark.dumpscreener.domain.Token;
 import trade.shark.dumpscreener.enums.CentralizedExchange;
 import trade.shark.dumpscreener.event.DumpSignalEvent;
+import trade.shark.dumpscreener.event.ExceptionEvent;
 import trade.shark.dumpscreener.event.MetadataRefreshedEvent;
 import trade.shark.dumpscreener.exception.NotificationException;
 
@@ -49,6 +50,12 @@ public class EventHandler {
     } catch (Exception ex) {
       log.error("Error processing {}", event, ex);
     }
+  }
+
+  @EventListener
+  public void handleException(ExceptionEvent event) {
+    final String msg = String.format("Exception during `%s`: `%s. Please contact administrator.`", event.getAction(), event.getException().getMessage());
+    notificationService.sendNotification(msg);
   }
 
   private void sendSignalNotifications(DumpSignalEvent event) {

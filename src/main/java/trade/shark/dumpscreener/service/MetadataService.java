@@ -33,7 +33,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -44,7 +43,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @RequiredArgsConstructor
 public class MetadataService {
-  private static final int CG_REQUEST_LENGTH_THRESHOLD = 5000;
+  private static final int COINGECKO_REQUEST_MAX_LENGTH = 5000;
 
   private final AppProperties properties;
   private final CoinGeckoApiClient coinGeckoApiClient;
@@ -59,16 +58,16 @@ public class MetadataService {
   private final Map<NetworkContract, Token> duplicateCoinsMap = new HashMap<>();
   private final Map<Network, List<NetworkContract>> contractsByNetworkMap = new HashMap<>();
 
-  public void fetchCoinsMetadata() throws ExecutionException, InterruptedException {
+  public void updateMetadata() throws ExecutionException, InterruptedException {
     final LocalDateTime start = LocalDateTime.now();
-    log.debug("Refreshing cache");
+    log.debug("Updating metadata...");
     final Future<List<CoinList>> cgCoinsListFuture = executorService.submit(coinGeckoApiClient::getCoinList);
     final Future<List<AssetData>> ccMetadataFuture = executorService.submit(() ->
         assetDataService.iterativelyLoadTopList(AssetSortBy.CIRCULATING_MKT_CAP_USD, PageRequest.unpaged()));
     final List<CoinList> coins = cgCoinsListFuture.get();
-    final Map<String, CoinPriceData> cgMetadata = getCgMetadata(coins); //todo sublist for quicker development
+
     final List<Token> chainSupportedTokens = buildTokenData(coins);
-    final List<Token> filteredTokens = filterTokens(chainSupportedTokens, cgMetadata);
+    final List<Token> filteredTokens = filterTokens(chainSupportedTokens);
 
     log.debug("Tokens Filtered: {}. Existing on chains: {}. Supported by CoinGecko: {}.", filteredTokens.size(), coins.size(), chainSupportedTokens.size());
     populateCryptoCompareIds(filteredTokens, ccMetadataFuture.get());
@@ -76,7 +75,6 @@ public class MetadataService {
 
     updateMetadata(filteredTokens);
     eventPublisher.publishEvent(new MetadataRefreshedEvent(filteredTokens, Duration.between(start, lastUpdate)));
-    log.debug("Cache updated!");
   }
 
   public Token getTokenByContract(NetworkContract contract) {
@@ -114,7 +112,7 @@ public class MetadataService {
               .toList();
           return contracts.isEmpty() ? null :
               Token.builder()
-                  .cgId(coin.getId())
+                  .coingeckoId(coin.getId())
                   .cgSymbol(coin.getSymbol())
                   .name(coin.getName())
                   .tradePairs(new HashMap<>())
@@ -126,55 +124,65 @@ public class MetadataService {
     return tokens;
   }
 
-  private Map<String, CoinPriceData> getCgMetadata(List<CoinList> coins) throws InterruptedException {
+  /**
+   * @return Map of CoinGeckoId to CoinPriceData
+   */
+  private Map<Token, CoinPriceData> getCoingeckoMetadata(List<Token> tokens) {
     long start = System.currentTimeMillis();
-    final Map<String, CoinPriceData> metadata = new HashMap<>();
+    final Map<String, CoinPriceData> runningMetadataMap = new HashMap<>();
     StringBuilder sublistBuilder = new StringBuilder();
-    List<String> sublist = new ArrayList<>();
+    List<String> idSublist = new ArrayList<>();
 
-    for (CoinList coin : coins) {
-      final String coinId = coin.getId();
+    for (Token coin : tokens) {
+      final String coinId = coin.getCoingeckoId();
       final int coinIdLength = coinId.length();
 
-      if (sublistBuilder.length() + coinIdLength + 1 > CG_REQUEST_LENGTH_THRESHOLD) {
-        metadata.putAll(fetchCoinGeckoMetadata(sublist));
+      if (sublistBuilder.length() + coinIdLength + 1 > COINGECKO_REQUEST_MAX_LENGTH) {
+        runningMetadataMap.putAll(fetchCoinGeckoMetadata(idSublist));
         sublistBuilder = new StringBuilder();
-        sublist = new ArrayList<>();
+        idSublist = new ArrayList<>();
       }
 
       if (!sublistBuilder.isEmpty()) {
         sublistBuilder.append(",");
       }
       sublistBuilder.append(coinId);
-      sublist.add(coinId);
+      idSublist.add(coinId);
     }
 
     if (!sublistBuilder.isEmpty()) {
-      metadata.putAll(fetchCoinGeckoMetadata(sublist));
+      runningMetadataMap.putAll(fetchCoinGeckoMetadata(idSublist));
     }
-    log.debug("Fetched CoinGecko metadata: {} items, {}ms.", metadata.size(), System.currentTimeMillis() - start);
-    return metadata;
+    final Map<Token, CoinPriceData> resultMetadata = tokens.stream()
+        .filter(token -> runningMetadataMap.containsKey(token.getCoingeckoId()))
+        .collect(Collectors.toMap(token -> token, token -> runningMetadataMap.get(token.getCoingeckoId())));
+    log.debug("Fetched CoinGecko metadata: {} items, {}ms.", resultMetadata.size(), System.currentTimeMillis() - start);
+    return resultMetadata;
   }
 
-  private Map<String, CoinPriceData> fetchCoinGeckoMetadata(List<String> sublist) throws InterruptedException {
+  private Map<String, CoinPriceData> fetchCoinGeckoMetadata(List<String> sublist) {
     log.debug("fetching partial cg metadata: {}", sublist.size());
-    Thread.sleep(1000); //todo why?
-    return coinGeckoApiClient.getCoinPriceData(sublist);
+    try {
+      Thread.sleep(2000);
+      return coinGeckoApiClient.getCoinPriceData(sublist);
+    } catch (Exception ex) {
+      log.error("Error fetching CoinGecko metadata, batchSize={}", sublist.size(), ex);
+      return Map.of();
+    }
   }
 
-  private List<Token> filterTokens(List<Token> tokens, Map<String, CoinPriceData> cgMetadata) {
+  private List<Token> filterTokens(List<Token> tokens) {
     long start = System.currentTimeMillis();
-
-    final Set<String> filteredTokenIds = cgMetadata.entrySet().stream()
+    final Map<Token, CoinPriceData> cgMetadata = getCoingeckoMetadata(tokens); //todo sublist for quicker development
+    final List<Token> filteredTokens = cgMetadata.entrySet().stream()
         .filter(Objects::nonNull)
         .filter(e -> properties.getVolume24h() == null ||
             (e.getValue().getUsdVolume24H() != null && e.getValue().getUsdVolume24H().compareTo(properties.getVolume24h()) > 0))
         .filter(e -> properties.getMarketCap() == null
             || (e.getValue().getMarketCap() != null && e.getValue().getMarketCap().compareTo(properties.getMarketCap()) > 0))
         .map(Map.Entry::getKey)
-        .collect(Collectors.toSet());
+        .toList();
 
-    final List<Token> filteredTokens = tokens.stream().filter(t -> filteredTokenIds.contains(t.getCgId())).toList();
     log.debug("filtered tokens: {} items, {}ms", filteredTokens.size(), System.currentTimeMillis() - start);
     return filteredTokens;
   }
@@ -223,9 +231,11 @@ public class MetadataService {
           .filter(Objects::nonNull)
           .findFirst()
           .ifPresent(assetData -> {
-            token.setDeploymentTime(assetData.getLaunchDate());
+            token.setDeploymentTime(assetData.getCreatedOn());
             token.setCcId(assetData.getName());
             token.setCcSymbol(assetData.getSymbol());
+            token.setMarketCap(assetData.getTotalMktCapUsd());
+            token.setUsdVolume24H(assetData.getSpotMoving24HourQuoteVolumeUsd());
           });
     });
     log.debug("Supported by CryptoCompare: {} items, {}ms", tokens.size(), System.currentTimeMillis() - start);

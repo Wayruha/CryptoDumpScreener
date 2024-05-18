@@ -22,9 +22,10 @@ public class Bootstrap {
 
   @Async
   @Scheduled(fixedDelayString = "${screener.metadataUpdateRateSec}", timeUnit = TimeUnit.SECONDS)
-  public void refreshCache() {
+  public void updateMetadata() {
     log.debug("refreshing token cache");
     try {
+      DumpScreenerApplication.CLI_LOG.info("Metadata is updating...");
       metadataService.updateMetadata();
     } catch (Exception ex) {
       log.error("Exception during metadata update", ex);
@@ -36,7 +37,7 @@ public class Bootstrap {
   @Scheduled(fixedDelayString = "${screener.screeningRateSec}", initialDelayString = "${screener.initialDelaySec}", timeUnit = TimeUnit.SECONDS)
   public void startScreening() {
     try {
-      if(metadataService.getLastUpdate() == null) {
+      if (metadataService.getLastUpdate() == null) {
         log.warn("Metadata is not initialized yet, skip this round.");
         return;
       }

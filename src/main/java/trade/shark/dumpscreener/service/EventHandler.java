@@ -2,6 +2,7 @@ package trade.shark.dumpscreener.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import trade.shark.dumpscreener.DumpScreenerApplication;
@@ -29,12 +30,19 @@ public class EventHandler {
   private final TgNotificationService notificationService;
 
   @EventListener
+  public void onApplicationReady(ApplicationReadyEvent event) {
+    DumpScreenerApplication.CLI_LOG.info("Application has started.");
+  }
+
+  @EventListener
   public void onSignalTriggered(DumpSignalEvent event) {
     log.info("Dump signal triggered: {}", event);
     try {
       final Map<CentralizedExchange, CexSpread> options = loadCexOptions(event.getToken(), event.getCurrentPrice());
       event.setCexOptions(options);
 
+      final String displayText = "\n" + TgNotificationService.toTgDisplayText(event);
+      DumpScreenerApplication.CLI_LOG.info(displayText);
       sendSignalNotifications(event);
     } catch (Exception ex) {
       log.error("Error processing dump signal for  {}", event.getToken().getIdentityContract(), ex);
@@ -44,7 +52,7 @@ public class EventHandler {
   @EventListener
   public void handleMetadataRefreshed(MetadataRefreshedEvent event) {
     try {
-      final String text = String.format("Metadata refreshed in %dsec. Supported tokens: %d", event.getTimeSpend().getSeconds(), event.getSupportedTokens().size());
+      final String text = String.format("Metadata refreshed in %d sec. Supported tokens: %d", event.getTimeSpend().getSeconds(), event.getSupportedTokens().size());
       DumpScreenerApplication.CLI_LOG.info(text);
       notificationService.sendNotification(text);
     } catch (Exception ex) {
@@ -55,14 +63,12 @@ public class EventHandler {
   @EventListener
   public void handleException(ExceptionEvent event) {
     final String msg = String.format("Exception during `%s`: `%s. Please contact administrator.`", event.getAction(), event.getException().getMessage());
+    DumpScreenerApplication.CLI_LOG.info(msg);
     notificationService.sendNotification(msg);
   }
 
   private void sendSignalNotifications(DumpSignalEvent event) {
     try {
-      final String displayText = TgNotificationService.toTgDisplayText(event);
-      DumpScreenerApplication.CLI_LOG.info(displayText);
-
       notificationService.sendNotifications(event);
     } catch (NotificationException ex) {
       log.error("Error sending notifications for  {}", event.getToken().getIdentityContract(), ex);

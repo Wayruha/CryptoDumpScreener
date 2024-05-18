@@ -128,7 +128,7 @@ public class PriceScreenerService {
             currentPrice,
             currentPrice.subtract(oldPrice),
             changePercent,
-            Duration.ofMillis(rule.getTimeWindowSec()));
+            Duration.ofSeconds(rule.getTimeWindowSec()));
         events.add(event);
       }
     });

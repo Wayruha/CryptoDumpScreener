@@ -47,6 +47,7 @@ public class TelegramClient extends TelegramLongPollingBot {
     if (text == null || text.isBlank()) return false;
     final SendMessage action = new SendMessage(String.valueOf(config.getNotificationChatId()), text);
     action.setParseMode(markdownMode ? ParseMode.MARKDOWN : ParseMode.HTML);
+    action.setDisableWebPagePreview(true);
     return processAction(action);
   }
 

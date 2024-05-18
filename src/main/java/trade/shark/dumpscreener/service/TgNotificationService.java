@@ -2,12 +2,15 @@ package trade.shark.dumpscreener.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import trade.shark.dumpscreener.domain.NetworkContract;
 import trade.shark.dumpscreener.domain.Token;
+import trade.shark.dumpscreener.enums.Network;
 import trade.shark.dumpscreener.event.DumpSignalEvent;
 import trade.shark.dumpscreener.exception.NotificationException;
 
 import java.util.Optional;
 
+import static java.lang.String.valueOf;
 import static trade.shark.dumpscreener.util.MathUtil.alternativeMoneyFormat;
 import static trade.shark.dumpscreener.util.MathUtil.calculateAgeInDays;
 import static trade.shark.dumpscreener.util.MathUtil.formatPrice;
@@ -23,10 +26,12 @@ public class TgNotificationService {
   private static final String SIGNAL_MSG_TEMPLATE = """
       *${symbol}/${priceChangePercent}%*
               
-      Address: `${tokenAddress}`
+      Address: [${tokenAddress}](${tokenURL})
       Network: `${tokenNetwork}`
       Name: *${tokenName}*
+      TimeWindow: ${detectionTimeWindow} sec
       MarketCap: ${tokenMarketCap}$
+      Volume24H: ${volume24H}$
       Age: ${tokenAge}
       Dex:
         Market: ${dexMarket}
@@ -55,13 +60,17 @@ public class TgNotificationService {
 
   public static String toTgDisplayText(DumpSignalEvent event) {
     final Token token = event.getToken();
+    final Network network = event.getNetwork();
     final StringBuilder bldr = new StringBuilder(MSG_DIVIDER);
     bldr.append(SIGNAL_MSG_TEMPLATE.replace("${symbol}", token.getSymbol().toUpperCase())
         .replace("${priceChangePercent}", getFormattedSpread(event.getChangePercentage()))
-        .replace("${tokenAddress}", token.getContractAddress(event.getNetwork()))
-        .replace("${tokenNetwork}", event.getNetwork().toString())
+        .replace("${tokenAddress}", token.getContractAddress(network))
+        .replace("${tokenURL}", buildTokenUrl(token, network))
+        .replace("${tokenNetwork}", network.toString())
         .replace("${tokenName}", token.getName())
+        .replace("${detectionTimeWindow}", valueOf(event.getMonitoredTimeWindow().getSeconds()))
         .replace("${tokenMarketCap}", alternativeMoneyFormat(token.getMarketCap()))
+        .replace("${volume24H}", alternativeMoneyFormat(token.getUsdVolume24H()))
         .replace("${tokenAge}", token.getDeploymentTime() != null ? calculateAgeInDays(token.getDeploymentTime()) + " days" : "--")
         .replace("${dexMarket}", DEX_1inch)
         .replace("${dexPrice}", formatPrice(event.getCurrentPrice())));
@@ -75,5 +84,9 @@ public class TgNotificationService {
     });
     bldr.append(MSG_DIVIDER);
     return bldr.toString();
+  }
+
+  private static String buildTokenUrl(Token token, Network network){
+    return "https://dexscreener.com/" + network.toString().toLowerCase() + "/" + token.getContractAddress(network);
   }
 }

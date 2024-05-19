@@ -1,4 +1,8 @@
-spring.application.name: dump-screener
+spring:
+  application:
+    name: dump-screener
+  main:
+    banner-mode: off
 screener:
   stableCoins: USDT,USDC
   cexes: BINANCE,KUCOIN,GATE,OKX,BITMART,HUOBI
@@ -16,9 +20,11 @@ screener:
     apiKey: ${ONE_INCH_API_KEY}
   rules:
     - timeWindowSec: 40
-      triggerPercentage: 3
+      triggerPercentage: 10
     - timeWindowSec: 60
-      triggerPercentage: 7
+      triggerPercentage: 15
+    - timeWindowSec: 600
+      triggerPercentage: 30
 
 telegram:
   apiToken: ${TELEGRAM_BOT_TOKEN}

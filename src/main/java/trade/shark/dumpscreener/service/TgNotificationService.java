@@ -21,7 +21,7 @@ import static trade.shark.dumpscreener.util.MathUtil.getFormattedSpread;
 public class TgNotificationService {
   private static final String DEX_1inch = "1inch";
 
-  private static final String SIGNAL_CEXES_TEMPLATE = "  ${exchange}: ${spread}\n";
+  private static final String SIGNAL_CEXES_TEMPLATE = "  ${exchange}: `${price}, ${spread}%`\n";
   private static final String MSG_DIVIDER = "---------------------\n";
   private static final String SIGNAL_MSG_TEMPLATE = """
       *${symbol}/${priceChangePercent}%*
@@ -75,11 +75,12 @@ public class TgNotificationService {
         .replace("${dexMarket}", DEX_1inch)
         .replace("${dexPrice}", formatPrice(event.getCurrentPrice())));
     if (!event.getCexOptions().isEmpty()) {
-      bldr.append("__CEXes__:\n");
+      bldr.append("__Spread on CEX__:\n");
     }
     event.getCexOptions().values().forEach(spread -> {
       bldr.append(SIGNAL_CEXES_TEMPLATE
           .replace("${exchange}", spread.getSellExchange().toString())
+          .replace("${price}", formatPrice(spread.getCurrentPrice()))
           .replace("${spread}", getFormattedSpread(spread.getSpreadPercentage())));
     });
     bldr.append(MSG_DIVIDER);

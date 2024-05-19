@@ -38,12 +38,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
-//todo it should hold the metadata returned by aggregator API (coingecko?)
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class MetadataService {
   private static final int COINGECKO_REQUEST_MAX_LENGTH = 5000;
+  private static final int COINGECKO_REQUEST_BACKOFF = 2000;
 
   private final AppProperties properties;
   private final CoinGeckoApiClient coinGeckoApiClient;
@@ -163,7 +163,7 @@ public class MetadataService {
   private Map<String, CoinPriceData> fetchCoinGeckoMetadata(List<String> sublist) {
     log.debug("fetching partial cg metadata: {}", sublist.size());
     try {
-      Thread.sleep(2000);
+      Thread.sleep(COINGECKO_REQUEST_BACKOFF);
       return coinGeckoApiClient.getCoinPriceData(sublist);
     } catch (Exception ex) {
       log.error("Error fetching CoinGecko metadata, batchSize={}", sublist.size(), ex);

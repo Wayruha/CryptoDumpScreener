@@ -27,6 +27,7 @@ public class AppProperties {
   private List<Rule> rules;
   private BigDecimal volume24h;
   private BigDecimal marketCap;
+  private BigDecimal liquidity;
 
   @Data
   public static class CoinGecko {

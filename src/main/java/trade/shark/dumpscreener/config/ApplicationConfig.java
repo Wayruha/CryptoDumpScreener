@@ -7,6 +7,8 @@ import com.litesoftwares.coingecko.CoinGeckoApiClient;
 import com.litesoftwares.coingecko.impl.CoinGeckoApiClientImpl;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
 import trade.wayruha.cryptocompare.CryptoCompareParams;
 import trade.wayruha.cryptocompare.client.CryptoCompareClient;
 import trade.wayruha.cryptocompare.service.AssetDataService;
@@ -65,5 +67,10 @@ public class ApplicationConfig {
   @Bean
   public MathContext mathContext() {
     return new MathContext(7, RoundingMode.FLOOR);
+  }
+
+  @Bean
+  public WebClient webClient() {
+    return WebClient.create();
   }
 }

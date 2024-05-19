@@ -1,11 +1,13 @@
 package trade.shark.dumpscreener.service;
 
+import com.google.common.collect.Lists;
 import com.litesoftwares.coingecko.CoinGeckoApiClient;
 import com.litesoftwares.coingecko.domain.Coins.CoinList;
 import com.litesoftwares.coingecko.domain.Coins.CoinPriceData;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -15,6 +17,8 @@ import trade.shark.dumpscreener.domain.Token;
 import trade.shark.dumpscreener.domain.TradePair;
 import trade.shark.dumpscreener.enums.Network;
 import trade.shark.dumpscreener.event.MetadataRefreshedEvent;
+import trade.shark.dumpscreener.service.dexscreener.DexscreenerClient;
+import trade.shark.dumpscreener.service.dexscreener.TokensResponse;
 import trade.wayruha.cryptocompare.domain.AssetSortBy;
 import trade.wayruha.cryptocompare.request.PageRequest;
 import trade.wayruha.cryptocompare.response.AssetData;
@@ -24,6 +28,7 @@ import trade.wayruha.cryptocompare.response.InstrumentMapping;
 import trade.wayruha.cryptocompare.service.AssetDataService;
 import trade.wayruha.cryptocompare.service.SpotDataService;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.AbstractMap;
@@ -38,17 +43,19 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
+import static trade.shark.dumpscreener.config.GlobalConstants.DEXSCREENER_TOKEN_COUNT_THRESHOLD;
+
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class MetadataService {
   private static final int COINGECKO_REQUEST_MAX_LENGTH = 5000;
   private static final int COINGECKO_REQUEST_BACKOFF = 2000;
-
   private final AppProperties properties;
   private final CoinGeckoApiClient coinGeckoApiClient;
   private final AssetDataService assetDataService;
   private final SpotDataService spotDataService;
+  private final DexscreenerClient dexscreenerClient;
   private final ExecutorService executorService;
   private final ApplicationEventPublisher eventPublisher;
   private final List<Token> coinsData = new ArrayList<>();
@@ -183,8 +190,33 @@ public class MetadataService {
         .map(Map.Entry::getKey)
         .toList();
 
-    log.debug("filtered tokens: {} items, {}ms", filteredTokens.size(), System.currentTimeMillis() - start);
-    return filteredTokens;
+    final List<Pair<Token, NetworkContract>> networkContracts = filteredTokens.stream()
+        .flatMap(token -> token.getContracts().stream().map(contract -> Pair.of(token, contract))).toList();
+    final List<Pair<Token, NetworkContract>> filteredNetworkContracts = new ArrayList<>();
+    Lists.partition(networkContracts, DEXSCREENER_TOKEN_COUNT_THRESHOLD).forEach(sublist -> {
+      final List<String> contracts = sublist.stream().map(Pair::getRight).map(NetworkContract::getContractAddress).toList();
+      final TokensResponse response = dexscreenerClient.getMetadata(contracts);
+      final List<String> filtered = response.getPairs().stream().filter(pair -> {
+                final BigDecimal liquidity = Optional.ofNullable(pair.getLiquidity().get("usd")).orElse(BigDecimal.ZERO);
+                final BigDecimal volume = Optional.ofNullable(pair.getVolume().get("h24")).orElse(BigDecimal.ZERO);
+                return liquidity.compareTo(properties.getLiquidity()) >= 0
+                    && volume.compareTo(properties.getVolume24h()) >= 0;
+              }
+          ).map(pair -> pair.getBaseToken().getAddress())
+          .distinct()
+          .filter(Objects::nonNull)
+          .toList();
+      final List<Pair<Token, NetworkContract>> pairs = sublist.stream().filter(pair -> filtered.stream()
+          .filter(Objects::nonNull)
+          .anyMatch(address -> address
+              .equalsIgnoreCase(pair.getRight().getContractAddress())))
+          .toList();
+      log.debug("filtered part of tokens, filtered: {}/{}", pairs.size(), sublist.size());
+      filteredNetworkContracts.addAll(pairs);
+    });
+
+    log.debug("filtered tokens: {} items, {}ms", filteredNetworkContracts.size(), System.currentTimeMillis() - start);
+    return filteredNetworkContracts.stream().map(Pair::getLeft).distinct().toList();
   }
 
   private void populateTradePair(List<Token> tokens) {

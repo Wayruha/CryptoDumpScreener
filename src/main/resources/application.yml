@@ -9,6 +9,7 @@ screener:
   networks: ETHEREUM
   volume24h: 100000
   marketCap: 100000
+  liquidity: 100000
   metadataUpdateRateSec: 86400
   screeningRateSec: 20
   initialDelaySec: 20

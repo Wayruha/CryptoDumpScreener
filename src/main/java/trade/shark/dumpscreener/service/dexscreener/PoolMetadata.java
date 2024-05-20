@@ -12,10 +12,16 @@ import java.util.Map;
 @AllArgsConstructor
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class Pair {
+public class PoolMetadata {
+  private String chainId;
+  private String dexId;
   private Token baseToken;
+  private Token quoteToken;
+  private BigDecimal priceNative;
+  private BigDecimal priceUsd;
   private Map<String, BigDecimal> volume;
-  private Map<String, BigDecimal> liquidity;
+  private Liquidity liquidity;
+  private Long pairCreatedAt;
 
   @Data
   @AllArgsConstructor
@@ -25,5 +31,13 @@ public class Pair {
     private String address;
     private String name;
     private String symbol;
+  }
+
+  @Data
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public static class Liquidity {
+    private BigDecimal usd;
+    private BigDecimal base;
+    private BigDecimal quote;
   }
 }

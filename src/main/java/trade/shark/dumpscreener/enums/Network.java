@@ -9,23 +9,24 @@ import java.util.stream.Stream;
 @AllArgsConstructor
 @Getter
 public enum Network {
-  ETHEREUM("ethereum", "ETH", Chain.ETHEREUM),
-  ARBITRUM("arbitrum", "ARB", Chain.ARBITRUM);
+  ETHEREUM("ethereum", "ETH", Chain.ETHEREUM, "ethereum"),
+  ARBITRUM("arbitrum", "ARB", Chain.ARBITRUM, "arbitrum");
 
-  final String cgName;
-  final String ccName;
+  final String coingeckoName;
+  final String cryptoCompareName;
   final Chain oneInchChain;
+  final String dexScreenerName;
 
   public static Network getByCgName(String cgName) {
     return Stream.of(values())
-        .filter(network -> network.cgName.equalsIgnoreCase(cgName))
+        .filter(network -> network.coingeckoName.equalsIgnoreCase(cgName))
         .findFirst()
         .orElse(null);
   }
 
   public static Network getByCcName(String ccName) {
     return Stream.of(values())
-        .filter(network -> network.ccName.equalsIgnoreCase(ccName))
+        .filter(network -> network.cryptoCompareName.equalsIgnoreCase(ccName))
         .findFirst()
         .orElse(null);
   }

@@ -7,7 +7,6 @@ import com.litesoftwares.coingecko.domain.Coins.CoinPriceData;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.Pair;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -18,7 +17,6 @@ import trade.shark.dumpscreener.domain.TradePair;
 import trade.shark.dumpscreener.enums.Network;
 import trade.shark.dumpscreener.event.MetadataRefreshedEvent;
 import trade.shark.dumpscreener.service.dexscreener.DexscreenerClient;
-import trade.shark.dumpscreener.service.dexscreener.TokensResponse;
 import trade.wayruha.cryptocompare.domain.AssetSortBy;
 import trade.wayruha.cryptocompare.request.PageRequest;
 import trade.wayruha.cryptocompare.response.AssetData;
@@ -28,7 +26,6 @@ import trade.wayruha.cryptocompare.response.InstrumentMapping;
 import trade.wayruha.cryptocompare.service.AssetDataService;
 import trade.wayruha.cryptocompare.service.SpotDataService;
 
-import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.AbstractMap;
@@ -38,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -115,7 +113,7 @@ public class MetadataService {
               .map(Network::getByCgName)
               .filter(Objects::nonNull)
               .filter(net -> properties.getNetworks().contains(net))
-              .map(net -> NetworkContract.of(platforms.get(net.getCgName()), net))
+              .map(net -> NetworkContract.of(platforms.get(net.getCoingeckoName()), net))
               .toList();
           return contracts.isEmpty() ? null :
               Token.builder()
@@ -180,8 +178,8 @@ public class MetadataService {
 
   private List<Token> filterTokens(List<Token> tokens) {
     long start = System.currentTimeMillis();
-    final Map<Token, CoinPriceData> cgMetadata = getCoingeckoMetadata(tokens); //todo sublist for quicker development
-    final List<Token> filteredTokens = cgMetadata.entrySet().stream()
+    final Map<Token, CoinPriceData> cgMetadata = getCoingeckoMetadata(tokens);
+    List<Token> filteredTokens = cgMetadata.entrySet().stream()
         .filter(Objects::nonNull)
         .filter(e -> properties.getVolume24h() == null ||
             (e.getValue().getUsdVolume24H() != null && e.getValue().getUsdVolume24H().compareTo(properties.getVolume24h()) > 0))
@@ -189,34 +187,44 @@ public class MetadataService {
             || (e.getValue().getMarketCap() != null && e.getValue().getMarketCap().compareTo(properties.getMarketCap()) > 0))
         .map(Map.Entry::getKey)
         .toList();
+    log.debug("filtered tokens by general metadata: {} items, {}ms", filteredTokens.size(), System.currentTimeMillis() - start);
 
-    final List<Pair<Token, NetworkContract>> networkContracts = filteredTokens.stream()
-        .flatMap(token -> token.getContracts().stream().map(contract -> Pair.of(token, contract))).toList();
-    final List<Pair<Token, NetworkContract>> filteredNetworkContracts = new ArrayList<>();
-    Lists.partition(networkContracts, DEXSCREENER_TOKEN_COUNT_THRESHOLD).forEach(sublist -> {
-      final List<String> contracts = sublist.stream().map(Pair::getRight).map(NetworkContract::getContractAddress).toList();
-      final TokensResponse response = dexscreenerClient.getMetadata(contracts);
-      final List<String> filtered = response.getPairs().stream().filter(pair -> {
-                final BigDecimal liquidity = Optional.ofNullable(pair.getLiquidity().get("usd")).orElse(BigDecimal.ZERO);
-                final BigDecimal volume = Optional.ofNullable(pair.getVolume().get("h24")).orElse(BigDecimal.ZERO);
-                return liquidity.compareTo(properties.getLiquidity()) >= 0
-                    && volume.compareTo(properties.getVolume24h()) >= 0;
-              }
-          ).map(pair -> pair.getBaseToken().getAddress())
-          .distinct()
-          .filter(Objects::nonNull)
-          .toList();
-      final List<Pair<Token, NetworkContract>> pairs = sublist.stream().filter(pair -> filtered.stream()
-          .filter(Objects::nonNull)
-          .anyMatch(address -> address
-              .equalsIgnoreCase(pair.getRight().getContractAddress())))
-          .toList();
-      log.debug("filtered part of tokens, filtered: {}/{}", pairs.size(), sublist.size());
-      filteredNetworkContracts.addAll(pairs);
-    });
+    start = System.currentTimeMillis();
+    filteredTokens = filterByLiquidityPools(filteredTokens);
+    log.debug("filtered tokens by pool metadata: {} items, {}ms", filteredTokens.size(), System.currentTimeMillis() - start);
+    return filteredTokens;
+  }
 
-    log.debug("filtered tokens: {} items, {}ms", filteredNetworkContracts.size(), System.currentTimeMillis() - start);
-    return filteredNetworkContracts.stream().map(Pair::getLeft).distinct().toList();
+  private List<Token> filterByLiquidityPools(List<Token> tokens) {
+
+    final Set<String> supportedChains = properties.getNetworks().stream()
+        .map(Network::getDexScreenerName)
+        .collect(Collectors.toSet());
+    final List<String> contractAddresses = tokens.stream()
+        .flatMap(t -> t.getContracts().stream())
+        .map(NetworkContract::getContractAddress)
+        .toList();
+
+    final Set<String> filteredAddresses = Lists.partition(contractAddresses, DEXSCREENER_TOKEN_COUNT_THRESHOLD).stream()
+        .map(dexscreenerClient::getMetadata)
+        .flatMap(response -> response.getPairs().stream())
+        .filter(poolMetadata -> {
+          if (poolMetadata.getChainId() == null || !supportedChains.contains(poolMetadata.getChainId())) return false;
+          if (properties.getLiquidity() != null && (poolMetadata.getLiquidity() == null || properties.getLiquidity().compareTo(poolMetadata.getLiquidity().getUsd()) > 0))
+            return false;
+          if (properties.getVolume24h() != null && (poolMetadata.getVolume().get("h24") == null || properties.getVolume24h().compareTo(poolMetadata.getVolume().get("h24")) > 0))
+            return false;
+          return true;
+        })
+        .map(pair -> pair.getBaseToken().getAddress().toUpperCase())
+        .collect(Collectors.toSet());
+
+
+    return tokens.stream()
+        .filter(token ->
+            token.getContracts().stream()
+                .anyMatch(contract -> filteredAddresses.contains(contract.getContractAddress())))
+        .toList();
   }
 
   private void populateTradePair(List<Token> tokens) {

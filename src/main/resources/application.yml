@@ -7,9 +7,9 @@ screener:
   stableCoins: USDT,USDC
   cexes: BINANCE,KUCOIN,GATE,OKX,BITMART,HUOBI
   networks: ETHEREUM
-  volume24h: 100000
+  volume24h: 10000
   marketCap: 100000
-  liquidity: 100000
+  liquidity: 50000
   metadataUpdateRateSec: 86400
   screeningRateSec: 20
   initialDelaySec: 20

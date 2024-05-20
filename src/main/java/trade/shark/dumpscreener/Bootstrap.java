@@ -29,7 +29,7 @@ public class Bootstrap {
       metadataService.updateMetadata();
     } catch (Exception ex) {
       log.error("Exception during metadata update", ex);
-      eventPublisher.publishEvent(new ExceptionEvent("metadata-update", ex));
+      eventPublisher.publishEvent(new ExceptionEvent(ExceptionEvent.ACTION_METADATA_UPDATE, ex));
     }
   }
 

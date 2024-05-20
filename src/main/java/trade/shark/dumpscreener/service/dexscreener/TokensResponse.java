@@ -12,5 +12,5 @@ import java.util.List;
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class TokensResponse {
-  private List<Pair> pairs;
+  private List<PoolMetadata> pairs;
 }

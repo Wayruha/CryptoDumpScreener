@@ -81,7 +81,7 @@ public class MathUtil {
   }
 
   public static String alternativeMoneyFormat(BigDecimal _number) {
-    if (_number == null) return "-";
+    if (_number == null || _number.signum() == 0) return "-";
     double number = _number.doubleValue();
     if (number < 1000) return valueOf(number);
     int exp = Math.min((int) (Math.log(number) / Math.log(1000)), availableMoneySuffixes.length());

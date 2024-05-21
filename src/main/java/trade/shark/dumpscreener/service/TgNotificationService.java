@@ -2,15 +2,18 @@ package trade.shark.dumpscreener.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import trade.shark.dumpscreener.domain.NetworkContract;
+import trade.shark.dumpscreener.domain.DexLiquidityPool;
 import trade.shark.dumpscreener.domain.Token;
+import trade.shark.dumpscreener.domain.TradePair;
 import trade.shark.dumpscreener.enums.Network;
 import trade.shark.dumpscreener.event.DumpSignalEvent;
 import trade.shark.dumpscreener.exception.NotificationException;
+import trade.shark.dumpscreener.util.MathUtil;
 
 import java.util.Optional;
 
 import static java.lang.String.valueOf;
+import static java.util.Optional.ofNullable;
 import static trade.shark.dumpscreener.util.MathUtil.alternativeMoneyFormat;
 import static trade.shark.dumpscreener.util.MathUtil.calculateAgeInDays;
 import static trade.shark.dumpscreener.util.MathUtil.formatPrice;
@@ -35,7 +38,9 @@ public class TgNotificationService {
       Age: ${tokenAge}
       Dex:
         Market: ${dexMarket}
-        Price: ${dexPrice}
+        Pool: ${dexPoolPair}
+        Liquidity: ${poolLiquidity}$
+        Price: ${dexPrice}$
       """;
 
   private final TelegramClient telegram;
@@ -62,6 +67,7 @@ public class TgNotificationService {
     final Token token = event.getToken();
     final Network network = event.getNetwork();
     final StringBuilder bldr = new StringBuilder(MSG_DIVIDER);
+    final Optional<DexLiquidityPool> dexLP = ofNullable(token.getDexLiquidityPool());
     bldr.append(SIGNAL_MSG_TEMPLATE.replace("${symbol}", token.getSymbol().toUpperCase())
         .replace("${priceChangePercent}", getFormattedSpread(event.getChangePercentage()))
         .replace("${tokenAddress}", token.getContractAddress(network))
@@ -69,10 +75,12 @@ public class TgNotificationService {
         .replace("${tokenNetwork}", network.toString())
         .replace("${tokenName}", token.getName())
         .replace("${detectionTimeWindow}", valueOf(event.getMonitoredTimeWindow().getSeconds()))
-        .replace("${tokenMarketCap}", alternativeMoneyFormat(token.getMarketCap()))
         .replace("${volume24H}", alternativeMoneyFormat(token.getUsdVolume24H()))
+        .replace("${tokenMarketCap}", alternativeMoneyFormat(token.getMarketCap()))
         .replace("${tokenAge}", token.getDeploymentTime() != null ? calculateAgeInDays(token.getDeploymentTime()) + " days" : "--")
-        .replace("${dexMarket}", DEX_1inch)
+        .replace("${dexMarket}", dexLP.map(DexLiquidityPool::getDexName).orElse(DEX_1inch))
+        .replace("${dexPoolPair}", dexLP.map(DexLiquidityPool::getLiquidityPoolPair).map(TradePair::toString).orElse("--"))
+        .replace("${poolLiquidity}", dexLP.map(DexLiquidityPool::getPoolLiquidityUsd).map(MathUtil::alternativeMoneyFormat).orElse("-"))
         .replace("${dexPrice}", formatPrice(event.getCurrentPrice())));
     if (!event.getCexOptions().isEmpty()) {
       bldr.append("__Spread on CEX__:\n");

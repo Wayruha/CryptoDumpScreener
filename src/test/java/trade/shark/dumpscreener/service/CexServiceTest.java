@@ -16,7 +16,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class CexServiceTest {
-
+  static final String apiKey = "";
   CexService service = new CexService(spotDataService(getCryptoCompareClient(getProperties())), null);
 
   @Test
@@ -30,7 +30,7 @@ class CexServiceTest {
     final AppProperties appProperties = new AppProperties();
     final AppProperties.CryptoCompare cryptoCompare = new AppProperties.CryptoCompare();
     appProperties.setCryptoCompare(cryptoCompare);
-    cryptoCompare.setApiKey("0ad56d567c3724cce20251382c73a67384759e3726258c89efe489f392d0e52d");
+    cryptoCompare.setApiKey(apiKey);
     return appProperties;
   }
 

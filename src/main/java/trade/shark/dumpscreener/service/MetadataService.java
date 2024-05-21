@@ -11,12 +11,14 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import trade.shark.dumpscreener.config.AppProperties;
+import trade.shark.dumpscreener.domain.DexLiquidityPool;
 import trade.shark.dumpscreener.domain.NetworkContract;
 import trade.shark.dumpscreener.domain.Token;
 import trade.shark.dumpscreener.domain.TradePair;
 import trade.shark.dumpscreener.enums.Network;
 import trade.shark.dumpscreener.event.MetadataRefreshedEvent;
 import trade.shark.dumpscreener.service.dexscreener.DexscreenerClient;
+import trade.shark.dumpscreener.service.dexscreener.PoolMetadata;
 import trade.wayruha.cryptocompare.domain.AssetSortBy;
 import trade.wayruha.cryptocompare.request.PageRequest;
 import trade.wayruha.cryptocompare.response.AssetData;
@@ -39,7 +41,9 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static trade.shark.dumpscreener.config.GlobalConstants.DEXSCREENER_TOKEN_COUNT_THRESHOLD;
 
@@ -179,12 +183,21 @@ public class MetadataService {
   private List<Token> filterTokens(List<Token> tokens) {
     long start = System.currentTimeMillis();
     final Map<Token, CoinPriceData> cgMetadata = getCoingeckoMetadata(tokens);
-    List<Token> filteredTokens = cgMetadata.entrySet().stream()
-        .filter(Objects::nonNull)
-        .filter(e -> properties.getVolume24h() == null ||
-            (e.getValue().getUsdVolume24H() != null && e.getValue().getUsdVolume24H().compareTo(properties.getVolume24h()) > 0))
-        .filter(e -> properties.getMarketCap() == null
-            || (e.getValue().getMarketCap() != null && e.getValue().getMarketCap().compareTo(properties.getMarketCap()) > 0))
+    Stream<Map.Entry<Token, CoinPriceData>> mdStream = cgMetadata.entrySet().stream()
+        .filter(Objects::nonNull);
+    if (properties.getVolume24h() != null) {
+      mdStream = mdStream.filter(e -> e.getValue().getUsdVolume24H() == null || e.getValue().getUsdVolume24H().compareTo(properties.getVolume24h()) > 0);
+    }
+    if (properties.getMarketCap() != null) {
+      mdStream = mdStream.filter(e -> e.getValue().getMarketCap() == null || e.getValue().getMarketCap().compareTo(properties.getMarketCap()) > 0);
+    }
+    List<Token> filteredTokens = mdStream
+        .peek(e -> {
+          final Token token = e.getKey();
+          final CoinPriceData metadata = e.getValue();
+          token.setMarketCap(metadata.getMarketCap());
+          token.setUsdVolume24H(metadata.getUsdVolume24H());
+        })
         .map(Map.Entry::getKey)
         .toList();
     log.debug("filtered tokens by general metadata: {} items, {}ms", filteredTokens.size(), System.currentTimeMillis() - start);
@@ -195,17 +208,21 @@ public class MetadataService {
     return filteredTokens;
   }
 
+  //load data from DexScreener
   private List<Token> filterByLiquidityPools(List<Token> tokens) {
-
     final Set<String> supportedChains = properties.getNetworks().stream()
         .map(Network::getDexScreenerName)
         .collect(Collectors.toSet());
-    final List<String> contractAddresses = tokens.stream()
-        .flatMap(t -> t.getContracts().stream())
+
+    Map<NetworkContract, Token> tokensMap = tokens.stream()
+        .flatMap(token -> token.getContracts().stream().map(contract -> new AbstractMap.SimpleEntry<>(contract, token)))
+        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (oldValue, newValue) -> oldValue));
+
+    final List<String> contractAddresses = tokensMap.keySet().stream()
         .map(NetworkContract::getContractAddress)
         .toList();
 
-    final Set<String> filteredAddresses = Lists.partition(contractAddresses, DEXSCREENER_TOKEN_COUNT_THRESHOLD).stream()
+    final Map<NetworkContract, PoolMetadata> contractMetadataMap = Lists.partition(contractAddresses, DEXSCREENER_TOKEN_COUNT_THRESHOLD).stream()
         .map(dexscreenerClient::getMetadata)
         .flatMap(response -> response.getPairs().stream())
         .filter(poolMetadata -> {
@@ -215,10 +232,30 @@ public class MetadataService {
           if (properties.getVolume24h() != null && (poolMetadata.getVolume().get("h24") == null || properties.getVolume24h().compareTo(poolMetadata.getVolume().get("h24")) > 0))
             return false;
           return true;
-        })
-        .map(pair -> pair.getBaseToken().getAddress().toUpperCase())
-        .collect(Collectors.toSet());
+        }).collect(Collectors.toMap(
+            md -> NetworkContract.of(md.getBaseToken().getAddress(), Network.getByDexScreenerName(md.getChainId())),
+            Function.identity(),
+            (oldValue, newValue) -> {
+              if (oldValue.getLiquidity() == null) return newValue;
+              if (newValue.getLiquidity() == null) return oldValue;
+              if (oldValue.getLiquidity().getUsd().compareTo(newValue.getLiquidity().getUsd()) > 0) return oldValue;
+              return newValue;
+            }));
 
+      //todo this is not optimised for multi-chains as it will overwrite the same token with different pools info
+      contractMetadataMap.forEach((contract, md) -> {
+        final Token token = tokensMap.get(contract);
+        final DexLiquidityPool dexPool = DexLiquidityPool.builder()
+            .dexName(md.getDexId())
+            .liquidityPoolPair(new TradePair(md.getBaseToken().getSymbol(), md.getQuoteToken().getSymbol()))
+            .poolLiquidityUsd(md.getLiquidity().getUsd())
+            .build();
+        token.setDexLiquidityPool(dexPool);
+      });
+
+    final Set<String> filteredAddresses = contractMetadataMap.keySet().stream()
+        .map(NetworkContract::getContractAddress)
+        .collect(Collectors.toSet());
 
     return tokens.stream()
         .filter(token ->
@@ -274,8 +311,8 @@ public class MetadataService {
             token.setDeploymentTime(assetData.getCreatedOn());
             token.setCcId(assetData.getName());
             token.setCcSymbol(assetData.getSymbol());
-            token.setMarketCap(assetData.getTotalMktCapUsd());
-            token.setUsdVolume24H(assetData.getSpotMoving24HourQuoteVolumeUsd());
+            token.setMarketCap(assetData.getCirculatingMktCapUsd());
+            token.setUsdVolume24H(assetData.getSpotMoving24HourQuoteVolumeUsd()); //todo ignore if present
           });
     });
     log.debug("Supported by CryptoCompare: {} items, {}ms", tokens.size(), System.currentTimeMillis() - start);

@@ -23,6 +23,7 @@ public class Token implements TokenMetadata {
   private Long deploymentTime;
   private BigDecimal marketCap;
   private BigDecimal usdVolume24H;
+  private DexLiquidityPool dexLiquidityPool;
   @EqualsAndHashCode.Exclude
   @ToString.Exclude
   private Map<CentralizedExchange, TradePair> tradePairs;
@@ -60,4 +61,5 @@ public class Token implements TokenMetadata {
   public Long deploymentTime() {
     return deploymentTime;
   }
+
 }

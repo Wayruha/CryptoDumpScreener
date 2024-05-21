@@ -36,6 +36,7 @@
             <version>${telegram.version}</version>
         </dependency>
 
+
         <dependency>
             <groupId>trade.wayruha</groupId>
             <artifactId>cryptocompare</artifactId>

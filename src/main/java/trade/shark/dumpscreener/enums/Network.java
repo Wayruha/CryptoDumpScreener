@@ -30,4 +30,18 @@ public enum Network {
         .findFirst()
         .orElse(null);
   }
+
+  public static Network getByOneInchChain(Chain chain) {
+    return Stream.of(values())
+        .filter(network -> network.oneInchChain == chain)
+        .findFirst()
+        .orElse(null);
+  }
+
+  public static Network getByDexScreenerName(String dexScreenerName) {
+    return Stream.of(values())
+        .filter(network -> network.dexScreenerName.equalsIgnoreCase(dexScreenerName))
+        .findFirst()
+        .orElse(null);
+  }
 }

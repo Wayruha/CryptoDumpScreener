@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import trade.shark.dumpscreener.event.ExceptionEvent;
 import trade.shark.dumpscreener.service.MetadataService;
 import trade.shark.dumpscreener.service.PriceScreenerService;
+import trade.shark.dumpscreener.service.dexscreener.DexScreenerClientException;
 
 import java.util.concurrent.TimeUnit;
 

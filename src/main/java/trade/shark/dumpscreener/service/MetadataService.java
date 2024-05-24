@@ -1,6 +1,5 @@
 package trade.shark.dumpscreener.service;
 
-import com.google.common.collect.Lists;
 import com.litesoftwares.coingecko.CoinGeckoApiClient;
 import com.litesoftwares.coingecko.domain.Coins.CoinList;
 import com.litesoftwares.coingecko.domain.Coins.CoinPriceData;
@@ -41,11 +40,8 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static trade.shark.dumpscreener.config.GlobalConstants.DEXSCREENER_TOKEN_COUNT_THRESHOLD;
 
 @Service
 @Slf4j
@@ -185,9 +181,6 @@ public class MetadataService {
     final Map<Token, CoinPriceData> cgMetadata = getCoingeckoMetadata(tokens);
     Stream<Map.Entry<Token, CoinPriceData>> mdStream = cgMetadata.entrySet().stream()
         .filter(Objects::nonNull);
-    if (properties.getVolume24h() != null) {
-      mdStream = mdStream.filter(e -> e.getValue().getUsdVolume24H() == null || e.getValue().getUsdVolume24H().compareTo(properties.getVolume24h()) > 0);
-    }
     if (properties.getMarketCap() != null) {
       mdStream = mdStream.filter(e -> e.getValue().getMarketCap() == null || e.getValue().getMarketCap().compareTo(properties.getMarketCap()) > 0);
     }
@@ -218,40 +211,29 @@ public class MetadataService {
         .flatMap(token -> token.getContracts().stream().map(contract -> new AbstractMap.SimpleEntry<>(contract, token)))
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (oldValue, newValue) -> oldValue));
 
-    final List<String> contractAddresses = tokensMap.keySet().stream()
-        .map(NetworkContract::getContractAddress)
-        .toList();
-
-    final Map<NetworkContract, PoolMetadata> contractMetadataMap = Lists.partition(contractAddresses, DEXSCREENER_TOKEN_COUNT_THRESHOLD).stream()
-        .map(dexscreenerClient::getMetadata)
-        .flatMap(response -> response.getPairs().stream())
-        .filter(poolMetadata -> {
+    Map<NetworkContract, PoolMetadata> contractMetadataMap = dexscreenerClient.loadPoolMetadata(tokensMap.keySet());
+    contractMetadataMap = contractMetadataMap.entrySet().stream()
+        .filter(e -> {
+          final PoolMetadata poolMetadata = e.getValue();
           if (poolMetadata.getChainId() == null || !supportedChains.contains(poolMetadata.getChainId())) return false;
           if (properties.getLiquidity() != null && (poolMetadata.getLiquidity() == null || properties.getLiquidity().compareTo(poolMetadata.getLiquidity().getUsd()) > 0))
             return false;
           if (properties.getVolume24h() != null && (poolMetadata.getVolume().get("h24") == null || properties.getVolume24h().compareTo(poolMetadata.getVolume().get("h24")) > 0))
             return false;
           return true;
-        }).collect(Collectors.toMap(
-            md -> NetworkContract.of(md.getBaseToken().getAddress(), Network.getByDexScreenerName(md.getChainId())),
-            Function.identity(),
-            (oldValue, newValue) -> {
-              if (oldValue.getLiquidity() == null) return newValue;
-              if (newValue.getLiquidity() == null) return oldValue;
-              if (oldValue.getLiquidity().getUsd().compareTo(newValue.getLiquidity().getUsd()) > 0) return oldValue;
-              return newValue;
-            }));
+        }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-      //todo this is not optimised for multi-chains as it will overwrite the same token with different pools info
-      contractMetadataMap.forEach((contract, md) -> {
-        final Token token = tokensMap.get(contract);
-        final DexLiquidityPool dexPool = DexLiquidityPool.builder()
-            .dexName(md.getDexId())
-            .liquidityPoolPair(new TradePair(md.getBaseToken().getSymbol(), md.getQuoteToken().getSymbol()))
-            .poolLiquidityUsd(md.getLiquidity().getUsd())
-            .build();
-        token.setDexLiquidityPool(dexPool);
-      });
+    //todo this is not optimised for multi-chains as it will overwrite the same token with different pools info
+    contractMetadataMap.forEach((contract, md) -> {
+      final Token token = tokensMap.get(contract);
+      final DexLiquidityPool dexPool = DexLiquidityPool.builder()
+          .dexName(md.getDexId())
+          .liquidityPairAddress(md.getPairAddress())
+          .liquidityPoolPair(new TradePair(md.getBaseToken().getSymbol(), md.getQuoteToken().getSymbol()))
+          .poolLiquidityUsd(md.getLiquidity().getUsd())
+          .build();
+      token.setDexLiquidityPool(dexPool);
+    });
 
     final Set<String> filteredAddresses = contractMetadataMap.keySet().stream()
         .map(NetworkContract::getContractAddress)
@@ -312,7 +294,7 @@ public class MetadataService {
             token.setCcId(assetData.getName());
             token.setCcSymbol(assetData.getSymbol());
             token.setMarketCap(assetData.getCirculatingMktCapUsd());
-            token.setUsdVolume24H(assetData.getSpotMoving24HourQuoteVolumeUsd()); //todo ignore if present
+            token.setUsdVolume24H(assetData.getSpotMoving24HourQuoteVolumeUsd());
           });
     });
     log.debug("Supported by CryptoCompare: {} items, {}ms", tokens.size(), System.currentTimeMillis() - start);
@@ -320,5 +302,12 @@ public class MetadataService {
 
   public List<Token> getTokens() {
     return new ArrayList<>(coinsData);
+  }
+
+  public List<NetworkContract> getTokenContracts() {
+    return coinsData.stream()
+        .flatMap(token -> token.getContracts().stream())
+        .distinct()
+        .collect(Collectors.toList());
   }
 }

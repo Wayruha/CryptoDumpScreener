@@ -1,2 +1,14 @@
 logging:
   config: classpath:logback-dev.xml
+
+screener:
+  volume24H: 10000
+  liquidity: 10000
+  #marketCap: 100000
+
+  # rules:
+  rules[0].timeWindowSec: 20
+  rules[0].triggerPercentage: 10
+
+  rules[1].timeWindowSec: 40
+  rules[1].triggerPercentage: 15

@@ -15,6 +15,7 @@ import java.util.Map;
 public class PoolMetadata {
   private String chainId;
   private String dexId;
+  private String pairAddress;
   private Token baseToken;
   private Token quoteToken;
   private BigDecimal priceNative;

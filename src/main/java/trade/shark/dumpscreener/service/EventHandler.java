@@ -1,6 +1,5 @@
 package trade.shark.dumpscreener.service;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -16,18 +15,31 @@ import trade.shark.dumpscreener.event.MetadataRefreshedEvent;
 import trade.shark.dumpscreener.exception.NotificationException;
 
 import java.math.BigDecimal;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 import static trade.shark.dumpscreener.util.MathUtil.calculateSpread;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class EventHandler {
   private final AppProperties appProperties;
   private final CexService cexService;
   private final TgNotificationService notificationService;
+  private final BigDecimal changeThreshold;
+
+  public EventHandler(AppProperties appProperties, CexService cexService, TgNotificationService notificationService) {
+    this.appProperties = appProperties;
+    this.cexService = cexService;
+    this.notificationService = notificationService;
+    final BigDecimal maxTriggerByRules = appProperties.getRules().stream()
+        .map(AppProperties.Rule::getTriggerPercentage)
+        .max(Comparator.comparing(Function.identity()))
+        .orElse(new BigDecimal(100));
+    this.changeThreshold = maxTriggerByRules.max(appProperties.getMaxAllowedPriceChangePercentage());
+  }
 
   @EventListener
   public void onApplicationReady(ApplicationReadyEvent event) {
@@ -38,6 +50,11 @@ public class EventHandler {
   public void onSignalTriggered(DumpSignalEvent event) {
     log.info("Dump signal triggered: {}", event);
     try {
+      if (event.getChangePercentage().abs().compareTo(changeThreshold) >= 0) {
+        log.warn("Change percentage {} is greater than threshold {}. Skipping.", event.getChangePercentage(), changeThreshold);
+        return;
+      }
+
       final Map<CentralizedExchange, CexSpread> options = loadCexOptions(event.getToken(), event.getCurrentPrice());
       event.setCexOptions(options);
 

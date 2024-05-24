@@ -1,26 +1,24 @@
 package trade.shark.dumpscreener.service;
 
-import com.google.common.collect.Lists;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import trade.shark.dumpscreener.config.AppProperties;
 import trade.shark.dumpscreener.domain.NetworkContract;
 import trade.shark.dumpscreener.domain.Token;
-import trade.shark.dumpscreener.enums.Network;
 import trade.shark.dumpscreener.event.DumpSignalEvent;
 import trade.shark.dumpscreener.util.MathUtil;
 import trade.wayruha.oneinch.service.SpotService;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -28,21 +26,21 @@ public class PriceScreenerService {
   private static final int ONEINCH_TOKEN_COUNT_THRESHOLD = 10000;
 
   private final MetadataService metadataService;
-  private final SpotService oneInchSpotService;
   private final ApplicationEventPublisher eventPublisher;
   private final AppProperties properties;
 
-  private final List<Map<NetworkContract, BigDecimal>> priceMaps = new LinkedList<>();
+  private final List<PriceSnapshot> priceMaps = new LinkedList<>();
   private final Long priceMapsToMaintain;
+  private final PriceProvider priceProvider;
 
   public PriceScreenerService(MetadataService metadataService,
                               ApplicationEventPublisher eventPublisher,
-                              SpotService oneInchSpotService,
-                              AppProperties properties) {
+                              AppProperties properties,
+                              PriceProvider priceProvider) {
     this.metadataService = metadataService;
     this.properties = properties;
     this.eventPublisher = eventPublisher;
-    this.oneInchSpotService = oneInchSpotService;
+    this.priceProvider = priceProvider;
     final Long longestTimeWindow = properties.getRules().stream()
         .map(AppProperties.Rule::getTimeWindowSec)
         .max(Long::compareTo)
@@ -51,13 +49,14 @@ public class PriceScreenerService {
   }
 
   public void detectDumps() {
-    final Map<NetworkContract, BigDecimal> currentPrices = fetchContractPrices();
-
     if (this.priceMaps.size() >= this.priceMapsToMaintain) {
       this.priceMaps.removeFirst();
     }
-    this.priceMaps.add(currentPrices);
+    final PriceSnapshot snapshot = new PriceSnapshot(LocalDateTime.now(), metadataService.getTokens().size());
+    this.priceMaps.add(snapshot);
 
+    final Map<NetworkContract, BigDecimal> currentPrices = priceProvider.loadPrices(metadataService.getTokenContracts());
+    snapshot.getPrices().putAll(currentPrices);
 
     final List<DumpSignalEvent> detectedEvents = properties.getRules().stream()
         .map(this::detectByRule)
@@ -67,52 +66,13 @@ public class PriceScreenerService {
     detectedEvents.forEach(eventPublisher::publishEvent);
   }
 
-  private Map<NetworkContract, BigDecimal> fetchContractPrices() {
-    final Map<NetworkContract, BigDecimal> priceMap = new HashMap<>();
-    final Map<Network, List<NetworkContract>> tokensByNetwork = properties.getNetworks().stream()
-        .collect(Collectors.toMap(Function.identity(), metadataService::getContractsByNetwork));
-
-    tokensByNetwork.forEach((net, tokens) -> Lists.partition(tokens, ONEINCH_TOKEN_COUNT_THRESHOLD)
-        .forEach(sublist -> priceMap.putAll(loadContractPrices(net, sublist))));
-    return priceMap;
-  }
-
-  private Map<NetworkContract, BigDecimal> getOldPriceMapForRule(AppProperties.Rule rule) {
-    if (priceMaps.isEmpty()) {
-      return new HashMap<>();
-    }
-    final int timeWindowIndex = priceMaps.size() - (int) Math.ceilDiv(rule.getTimeWindowSec(), properties.getScreeningRateSec());
-    int snapshotIndex = Math.max(0, timeWindowIndex);
-    return priceMaps.get(Math.min(snapshotIndex, priceMaps.size() - 1));
-  }
-
-  private Map<NetworkContract, BigDecimal> loadContractPrices(Network network, List<NetworkContract> networkContracts) {
-    final Map<NetworkContract, BigDecimal> priceMap = new HashMap<>();
-    final List<String> contractsAddr = networkContracts.stream()
-        .map(NetworkContract::getContractAddress)
-        .map(String::toLowerCase)
-        .toList();
-
-    final Map<String, BigDecimal> prices = oneInchSpotService.getTokenDollarPrices(network.getOneInchChain(), contractsAddr);
-
-    networkContracts.forEach(c -> {
-      final String contract = c.getContractAddress().toLowerCase();
-      final BigDecimal price = prices.get(contract);
-      if (price != null) {
-        priceMap.put(c, price);
-      }
-    });
-
-    return priceMap;
-  }
-
   private List<DumpSignalEvent> detectByRule(AppProperties.Rule rule) {
     if (priceMaps.isEmpty()) {
       return List.of();
     }
     final List<DumpSignalEvent> events = new ArrayList<>();
     final Map<NetworkContract, BigDecimal> old = getOldPriceMapForRule(rule);
-    final Map<NetworkContract, BigDecimal> current = priceMaps.getLast();
+    final Map<NetworkContract, BigDecimal> current = priceMaps.getLast().getPrices();
 
     old.keySet().forEach(contract -> {
       final BigDecimal oldPrice = old.get(contract);
@@ -133,5 +93,25 @@ public class PriceScreenerService {
       }
     });
     return events;
+  }
+
+  private Map<NetworkContract, BigDecimal> getOldPriceMapForRule(AppProperties.Rule rule) {
+    if (priceMaps.isEmpty()) {
+      return new HashMap<>();
+    }
+    final int timeWindowIndex = priceMaps.size() - (int) Math.ceilDiv(rule.getTimeWindowSec(), properties.getScreeningRateSec());
+    int snapshotIndex = Math.max(0, timeWindowIndex);
+    return priceMaps.get(Math.min(snapshotIndex, priceMaps.size() - 1)).getPrices();
+  }
+
+  @Getter
+  private static class PriceSnapshot {
+    private final LocalDateTime timestamp;
+    private final Map<NetworkContract, BigDecimal> prices;
+
+    public PriceSnapshot(LocalDateTime timestamp, int initialCapacity) {
+      this.timestamp = timestamp;
+      this.prices = new HashMap<>(initialCapacity);
+    }
   }
 }

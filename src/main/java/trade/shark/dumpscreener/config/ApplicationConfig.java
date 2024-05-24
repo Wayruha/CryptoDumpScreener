@@ -8,7 +8,6 @@ import com.litesoftwares.coingecko.impl.CoinGeckoApiClientImpl;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.reactive.function.client.WebClient;
 import trade.wayruha.cryptocompare.CryptoCompareParams;
 import trade.wayruha.cryptocompare.client.CryptoCompareClient;
 import trade.wayruha.cryptocompare.service.AssetDataService;
@@ -18,16 +17,25 @@ import trade.wayruha.oneinch.service.SpotService;
 
 import java.math.MathContext;
 import java.math.RoundingMode;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
 
 @Configuration
 public class ApplicationConfig {
 
-  @Bean
+/*  @Bean
   public ExecutorService executor() {
     //todo use more, depending on the CEXes count
     return Executors.newFixedThreadPool(4);
+  }*/
+
+  @Bean(name = "dexScreenerThreadPool")
+  public ForkJoinPool forkJoinPool() {
+    return new ForkJoinPool(4);
+  }
+
+  @Bean
+  public RestTemplate restTemplate() {
+    return new RestTemplate();
   }
 
   @Bean
@@ -67,10 +75,5 @@ public class ApplicationConfig {
   @Bean
   public MathContext mathContext() {
     return new MathContext(7, RoundingMode.FLOOR);
-  }
-
-  @Bean
-  public WebClient webClient() {
-    return WebClient.create();
   }
 }

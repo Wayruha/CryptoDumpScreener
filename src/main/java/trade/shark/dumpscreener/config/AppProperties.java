@@ -24,6 +24,7 @@ public class AppProperties {
   private OneInch oneInch;
   private Long metadataUpdateRateSec;
   private Long screeningRateSec;
+  private BigDecimal maxAllowedPriceChangePercentage = new BigDecimal(100);
   private List<Rule> rules;
   private BigDecimal volume24h;
   private BigDecimal marketCap;

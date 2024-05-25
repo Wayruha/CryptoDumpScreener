@@ -24,7 +24,7 @@ public class Bootstrap {
   @Async
   @Scheduled(fixedDelayString = "${screener.metadataUpdateRateSec}", timeUnit = TimeUnit.SECONDS)
   public void updateMetadata() {
-    log.debug("refreshing token cache");
+    log.debug("Updating metadata...");
     try {
       DumpScreenerApplication.CLI_LOG.info("Metadata is updating...");
       metadataService.updateMetadata();

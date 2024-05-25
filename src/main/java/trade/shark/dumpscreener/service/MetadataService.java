@@ -40,6 +40,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -49,6 +50,8 @@ import java.util.stream.Stream;
 public class MetadataService {
   private static final int COINGECKO_REQUEST_MAX_LENGTH = 5000;
   private static final int COINGECKO_REQUEST_BACKOFF = 2000;
+  private static final String COINGECKO_PLATFORM_NAME_BY_CRYPTO_COMPARE = "CG";
+
   private final AppProperties properties;
   private final CoinGeckoApiClient coinGeckoApiClient;
   private final AssetDataService assetDataService;
@@ -68,7 +71,7 @@ public class MetadataService {
     log.debug("Updating metadata...");
     final Future<List<CoinList>> cgCoinsListFuture = executorService.submit(coinGeckoApiClient::getCoinList);
     final Future<List<AssetData>> ccMetadataFuture = executorService.submit(() ->
-        assetDataService.iterativelyLoadTopList(AssetSortBy.CIRCULATING_MKT_CAP_USD, PageRequest.unpaged()));
+        assetDataService.iterativelyLoadTopList(AssetSortBy.PRICE_USD, PageRequest.unpaged()));
     final List<CoinList> coins = cgCoinsListFuture.get();
 
     final List<Token> chainSupportedTokens = buildTokenData(coins);
@@ -110,7 +113,7 @@ public class MetadataService {
         .map(coin -> {
           final Map<String, String> platforms = coin.getPlatforms();
           final List<NetworkContract> contracts = platforms.keySet().stream()
-              .map(Network::getByCgName)
+              .map(Network::getByCoingeckoName)
               .filter(Objects::nonNull)
               .filter(net -> properties.getNetworks().contains(net))
               .map(net -> NetworkContract.of(platforms.get(net.getCoingeckoName()), net))
@@ -118,7 +121,7 @@ public class MetadataService {
           return contracts.isEmpty() ? null :
               Token.builder()
                   .coingeckoId(coin.getId())
-                  .cgSymbol(coin.getSymbol())
+                  .coingeckoSymbol(coin.getSymbol())
                   .name(coin.getName())
                   .tradePairs(new HashMap<>())
                   .contracts(contracts)
@@ -248,6 +251,7 @@ public class MetadataService {
 
   private void populateTradePair(List<Token> tokens) {
     long start = System.currentTimeMillis();
+    AtomicInteger counter = new AtomicInteger();
     properties.getCexes().forEach(cex -> {
       final Map<String, ExchangeData> availableMarkets = spotDataService.getAvailableMarkets(cex.getCcName(), List.of());
       if (!availableMarkets.containsKey(cex.getCcName())) return;
@@ -256,21 +260,22 @@ public class MetadataService {
       instruments.stream()
           .filter(instrument -> properties.getStableCoins().stream().anyMatch(stableCoin -> stableCoin.equalsIgnoreCase(instrument.getQuote())))
           .collect(Collectors.groupingBy(InstrumentMapping::getBase))
-          .values()
-          .stream()
+          .values().stream()
           .map(dupes -> dupes.stream().findFirst())
           .filter(Optional::isPresent)
           .map(Optional::get)
           .forEach(instrument -> {
             tokens.stream()
-                .filter(token -> instrument.getBase().equalsIgnoreCase(token.getCcSymbol()))
+                .filter(token -> token.getCryptoCompareId() != null)
+                .filter(token -> Objects.equals(instrument.getBaseId(), token.getCryptoCompareId()))
                 .forEach(token -> {
                   token.getTradePairs().put(cex, new TradePair(instrument.getBase(), instrument.getQuote()));
+                  counter.getAndIncrement();
                 });
           });
     });
-    log.debug("Fetched USD trade pair for every CEX: {} items, {}ms", tokens.size(), System.currentTimeMillis() - start);
-    final long count = tokens.stream().filter(t -> t.getCcSymbol() == null).count();
+    log.debug("Fetched USD trade pair for every CEX: {} items, {}ms", counter, System.currentTimeMillis() - start);
+    final long count = tokens.stream().filter(t -> t.getCryptoCompareSymbol() == null).count();
     log.debug("Tokens without cryptoCompareSymbol: {}", count);
   }
 
@@ -278,26 +283,34 @@ public class MetadataService {
     long start = System.currentTimeMillis();
     final Map<NetworkContract, AssetData> assetDataMap = metadata.stream()
         .flatMap(assetData -> assetData.getSupportedPlatforms().stream()
-            .filter(platform -> Network.getByCcName(platform.getBlockchain()) != null)
+            .filter(platform -> Network.getByCryptocompareName(platform.getBlockchain()) != null)
             .filter(platform -> platform.getSmartContractAddress() != null)
-            .map(platform -> NetworkContract.of(platform.getSmartContractAddress(), Network.getByCcName(platform.getBlockchain())))
+            .map(platform -> NetworkContract.of(platform.getSmartContractAddress(), Network.getByCryptocompareName(platform.getBlockchain())))
             .map(contract -> new AbstractMap.SimpleEntry<>(contract, assetData)))
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (oldValue, newValue) -> oldValue));
 
-    tokens.forEach(token -> {
-      token.getContracts().stream()
-          .map(assetDataMap::get)
-          .filter(Objects::nonNull)
-          .findFirst()
-          .ifPresent(assetData -> {
-            token.setDeploymentTime(assetData.getCreatedOn());
-            token.setCcId(assetData.getName());
-            token.setCcSymbol(assetData.getSymbol());
-            token.setMarketCap(assetData.getCirculatingMktCapUsd());
-            token.setUsdVolume24H(assetData.getSpotMoving24HourQuoteVolumeUsd());
-          });
-    });
-    log.debug("Supported by CryptoCompare: {} items, {}ms", tokens.size(), System.currentTimeMillis() - start);
+    final Set<String> knownCoinGeckoIds = metadata.stream()
+        .filter(md -> md.getAssetAlternativeIds() != null)
+        .flatMap(md -> md.getAssetAlternativeIds().stream())
+        .filter(alt -> alt.getName().equalsIgnoreCase(COINGECKO_PLATFORM_NAME_BY_CRYPTO_COMPARE))
+        .map(AssetData.AssetAlternativeId::getId).collect(Collectors.toSet());
+    tokens.stream()
+        .filter(t -> knownCoinGeckoIds.contains(t.getCoingeckoId()))
+        .forEach(token -> {
+          token.getContracts().stream()
+              .map(assetDataMap::get)
+              .filter(Objects::nonNull)
+              .findFirst()
+              .ifPresent(assetData -> {
+                token.setDeploymentTime(assetData.getCreatedOn());
+                token.setCryptoCompareId(assetData.getId());
+                token.setCryptoCompareSymbol(assetData.getSymbol());
+                token.setMarketCap(assetData.getCirculatingMktCapUsd());
+                token.setUsdVolume24H(assetData.getSpotMoving24HourQuoteVolumeUsd());
+              });
+        });
+    final long supportedByCryptoCompare = tokens.stream().filter(t -> t.getCryptoCompareSymbol() == null).count();
+    log.debug("Supported by CryptoCompare: {} items, {}ms", supportedByCryptoCompare, System.currentTimeMillis() - start);
   }
 
   public List<Token> getTokens() {

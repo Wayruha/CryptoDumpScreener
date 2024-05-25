@@ -16,9 +16,9 @@ import java.util.Map;
 @EqualsAndHashCode
 public class Token implements TokenMetadata {
   private String coingeckoId;
-  private String cgSymbol;
-  private String ccId;
-  private String ccSymbol;
+  private String coingeckoSymbol;
+  private Integer cryptoCompareId;
+  private String cryptoCompareSymbol;
   private String name;
   private Long deploymentTime;
   private BigDecimal marketCap;
@@ -49,7 +49,7 @@ public class Token implements TokenMetadata {
 
   @Override
   public String getSymbol() {
-    return cgSymbol;
+    return coingeckoSymbol;
   }
 
   @Override

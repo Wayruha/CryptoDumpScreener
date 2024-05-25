@@ -17,14 +17,14 @@ public enum Network {
   final Chain oneInchChain;
   final String dexScreenerName;
 
-  public static Network getByCgName(String cgName) {
+  public static Network getByCoingeckoName(String cgName) {
     return Stream.of(values())
         .filter(network -> network.coingeckoName.equalsIgnoreCase(cgName))
         .findFirst()
         .orElse(null);
   }
 
-  public static Network getByCcName(String ccName) {
+  public static Network getByCryptocompareName(String ccName) {
     return Stream.of(values())
         .filter(network -> network.cryptoCompareName.equalsIgnoreCase(ccName))
         .findFirst()

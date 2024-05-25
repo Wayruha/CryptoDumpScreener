@@ -4,7 +4,7 @@ spring:
   main:
     banner-mode: off
 screener:
-  stableCoins: USDT,USDC
+  stableCoins: USDT,USDC,FDUSD
   cexes: BINANCE,KUCOIN,GATE,OKX,BITMART,HUOBI
   networks: ETHEREUM
   maxAllowedPriceChangePercentage: 70

@@ -79,7 +79,7 @@ public class EventHandler {
 
   @EventListener
   public void handleException(ExceptionEvent event) {
-    final String msg = String.format("Exception during `%s`: `%s. Please contact administrator.`", event.getAction(), event.getException().getMessage());
+    final String msg = String.format("Exception during `%s`: `%s. Please restart application. If it does not help - contact the administrator.`", event.getAction(), event.getException().getMessage());
     DumpScreenerApplication.CLI_LOG.info(msg);
     notificationService.sendNotification(msg);
   }

@@ -71,7 +71,7 @@ public class MetadataService {
     log.debug("Updating metadata...");
     final Future<List<CoinList>> cgCoinsListFuture = executorService.submit(coinGeckoApiClient::getCoinList);
     final Future<List<AssetData>> ccMetadataFuture = executorService.submit(() ->
-        assetDataService.iterativelyLoadTopList(AssetSortBy.PRICE_USD, PageRequest.unpaged()));
+        assetDataService.iterativelyLoadTopList(AssetSortBy.CIRCULATING_MKT_CAP_USD, PageRequest.unpaged()));
     final List<CoinList> coins = cgCoinsListFuture.get();
 
     final List<Token> chainSupportedTokens = buildTokenData(coins);

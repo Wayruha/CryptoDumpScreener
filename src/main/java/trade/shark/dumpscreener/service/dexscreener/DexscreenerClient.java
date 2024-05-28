@@ -31,26 +31,24 @@ import java.util.stream.Collectors;
 @Primary
 @Slf4j
 public class DexscreenerClient implements PriceProvider {
-  public static final int DEXSCREENER_TOKEN_COUNT_THRESHOLD = 30;
-
+  public static final int DEXSCREENER_TOKEN_COUNT_THRESHOLD = 25;
+  private static final int REQUESTS_PER_SECOND = 4;
   private final ForkJoinPool forkJoinPool;
   private final RestTemplate restTemplate;
   private final RateLimiter rateLimiter;
   private final MetadataService metadataService;
 
-  public DexscreenerClient(@Qualifier("dexScreenerThreadPool") ForkJoinPool forkJoinPool, RestTemplate restTemplate,  @Lazy MetadataService metadataService) {
+  public DexscreenerClient(@Qualifier("dexScreenerThreadPool") ForkJoinPool forkJoinPool, RestTemplate restTemplate, @Lazy MetadataService metadataService) {
     this.forkJoinPool = forkJoinPool;
     this.restTemplate = restTemplate;
     this.metadataService = metadataService;
-    this.rateLimiter = RateLimiter.create(5.0);
+    this.rateLimiter = RateLimiter.create(REQUESTS_PER_SECOND);
   }
 
   @SneakyThrows
   public Map<NetworkContract, PoolMetadata> loadPoolMetadata(Collection<NetworkContract> networkContracts) {
-    return forkJoinPool.submit(() -> {
-      final Map<NetworkContract, List<PoolMetadata>> allPools = loadLiquidityPools(networkContracts);
-      return filterPoolsByMaxLiquidity(allPools);
-    }).get();
+    final Map<NetworkContract, List<PoolMetadata>> allPools = loadLiquidityPools(networkContracts);
+    return filterPoolsByMaxLiquidity(allPools);
   }
 
   @SneakyThrows
@@ -60,7 +58,7 @@ public class DexscreenerClient implements PriceProvider {
     final Map<NetworkContract, List<PoolMetadata>> poolsMetadata = loadLiquidityPools(networkContracts);
     final Map<NetworkContract, PoolMetadata> poolMetadataMap = filterPoolsByPairAddress(poolsMetadata);
     final Map<NetworkContract, BigDecimal> prices = poolMetadataMap.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getPriceUsd()));
-    log.info("DexscreenerClient.loadPrices took {} ms. Size={}", System.currentTimeMillis() - start, prices.values().stream().filter(Objects::nonNull).count());
+    log.debug("loadPrices took {} ms. Size={}", System.currentTimeMillis() - start, prices.values().stream().filter(Objects::nonNull).count());
     return prices;
   }
 

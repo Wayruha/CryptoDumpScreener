@@ -2,8 +2,8 @@ logging:
   config: classpath:logback-dev.xml
 
 screener:
-  volume24H: 10000
-  liquidity: 10000
+  volume24H: 100000
+  liquidity: 100000
   #marketCap: 100000
 
   # rules:

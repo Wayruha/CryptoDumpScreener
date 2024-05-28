@@ -9,16 +9,18 @@ import trade.shark.dumpscreener.domain.NetworkContract;
 import trade.shark.dumpscreener.domain.Token;
 import trade.shark.dumpscreener.event.DumpSignalEvent;
 import trade.shark.dumpscreener.util.MathUtil;
-import trade.wayruha.oneinch.service.SpotService;
 
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -61,9 +63,14 @@ public class PriceScreenerService {
     final List<DumpSignalEvent> detectedEvents = properties.getRules().stream()
         .map(this::detectByRule)
         .flatMap(List::stream)
-        .distinct()
         .toList();
-    detectedEvents.forEach(eventPublisher::publishEvent);
+    final Collection<DumpSignalEvent> distinctEvents = detectedEvents.stream()
+        .collect(Collectors.toMap(
+            DumpSignalEvent::getToken,
+            Function.identity(),
+            (e1, e2) -> e1.getMonitoredTimeWindow().compareTo(e2.getMonitoredTimeWindow()) >= 0 ? e1 : e2))
+        .values();
+    distinctEvents.forEach(eventPublisher::publishEvent);
   }
 
   private List<DumpSignalEvent> detectByRule(AppProperties.Rule rule) {

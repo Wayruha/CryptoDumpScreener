@@ -9,8 +9,8 @@ screener:
   networks: ETHEREUM
   maxAllowedPriceChangePercentage: 70
   metadataUpdateRateSec: 86400
-  screeningRateSec: 20
-  initialDelaySec: 20
+  screeningRateSec: 10
+  initialDelaySec: 90
   cryptoCompare:
     apiKey: ${CRYPTO_COMPARE_API_KEY}
   coingecko:

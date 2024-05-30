@@ -70,6 +70,8 @@ public class DexscreenerClient implements PriceProvider {
     return forkJoinPool.submit(() -> {
       return Lists.partition(addresses, DEXSCREENER_TOKEN_COUNT_THRESHOLD).parallelStream()
           .map(this::getMetadata)
+          .filter(Objects::nonNull)
+          .filter(response -> response.getPairs() != null)
           .flatMap(response -> response.getPairs().stream())
           .filter(poolMetadata -> addressContractMap.containsKey(poolMetadata.getBaseToken().getAddress().toUpperCase()))
           .collect(Collectors.groupingBy(poolMetadata -> addressContractMap.get(poolMetadata.getBaseToken().getAddress().toUpperCase())));

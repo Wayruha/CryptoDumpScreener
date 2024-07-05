@@ -10,7 +10,12 @@ import java.util.stream.Stream;
 @Getter
 public enum Network {
   ETHEREUM("ethereum", "ETH", Chain.ETHEREUM, "ethereum"),
-  ARBITRUM("arbitrum", "ARB", Chain.ARBITRUM, "arbitrum");
+  ARBITRUM("arbitrum", "ARB", Chain.ARBITRUM, "arbitrum"),
+  SOLANA("solana", "SOL", null, "solana"),
+  AVAX("avalanche", "AVAX", Chain.AVALANCHE, "avalanche"),
+  POLYGON("polygon-pos", "MATIC", Chain.POLYGON, "polygon"),
+  BSC("binance-smart-chain", "BNB", Chain.BSC, "bsc"),
+  BASE("base", "BASECHAIN", Chain.BASE, "base");
 
   final String coingeckoName;
   final String cryptoCompareName;

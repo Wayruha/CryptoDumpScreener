@@ -48,7 +48,7 @@ public class DexscreenerClient implements PriceProvider {
   @SneakyThrows
   public Map<NetworkContract, PoolMetadata> loadPoolMetadata(Collection<NetworkContract> networkContracts) {
     final Map<NetworkContract, List<PoolMetadata>> allPools = loadLiquidityPools(networkContracts);
-    return filterPoolsByMaxLiquidity(allPools);
+    return leaveOnlyBiggestPoolPerContract(allPools);
   }
 
   @SneakyThrows
@@ -65,7 +65,7 @@ public class DexscreenerClient implements PriceProvider {
   @SneakyThrows
   private Map<NetworkContract, List<PoolMetadata>> loadLiquidityPools(Collection<NetworkContract> networkContracts) {
     final Map<String, NetworkContract> addressContractMap = networkContracts.stream()
-        .collect(Collectors.toMap(NetworkContract::getContractAddress, Function.identity()));
+        .collect(Collectors.toMap(NetworkContract::getContractAddress, Function.identity(), (existing, replacement) -> replacement));
     final List<String> addresses = addressContractMap.keySet().stream().toList();
     return forkJoinPool.submit(() -> {
       return Lists.partition(addresses, DEXSCREENER_TOKEN_COUNT_THRESHOLD).parallelStream()
@@ -83,6 +83,11 @@ public class DexscreenerClient implements PriceProvider {
     final Map<NetworkContract, PoolMetadata> poolMetadataMap = new HashMap<>();
     poolsMetadata.forEach((contract, metadataList) -> {
       final Token token = metadataService.getTokenByContract(contract);
+      //todo why it can be null?
+     /* if (token.getDexLiquidityPool() == null) {
+        System.out.println("Empty token: " + token.getSymbol());
+        return;
+      }*/
       metadataList.stream()
           .filter(md -> token.getDexLiquidityPool().getLiquidityPairAddress().equalsIgnoreCase(md.getPairAddress()))
           .findFirst()
@@ -92,7 +97,7 @@ public class DexscreenerClient implements PriceProvider {
   }
 
   @NotNull
-  private Map<NetworkContract, PoolMetadata> filterPoolsByMaxLiquidity(Map<NetworkContract, List<PoolMetadata>> poolsMetadata) {
+  private Map<NetworkContract, PoolMetadata> leaveOnlyBiggestPoolPerContract(Map<NetworkContract, List<PoolMetadata>> poolsMetadata) {
     final Map<NetworkContract, PoolMetadata> poolMetadataMap = new HashMap<>();
     poolsMetadata.forEach((contract, metadataList) -> {
       metadataList.stream()
@@ -111,7 +116,8 @@ public class DexscreenerClient implements PriceProvider {
       final TokensResponse body = responseEntity.getBody();
       return body;
     } catch (Exception exception) {
-      throw new DexScreenerClientException("Exception loading contracts: " + contracts, exception);
+      log.error("Exception loading contracts: {}", contracts, exception);
+      return null;
     }
   }
 }

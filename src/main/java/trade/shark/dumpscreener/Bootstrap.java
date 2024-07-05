@@ -30,7 +30,12 @@ public class Bootstrap {
       metadataService.updateMetadata();
     } catch (Exception ex) {
       log.error("Exception during metadata update", ex);
-      eventPublisher.publishEvent(new ExceptionEvent(ExceptionEvent.ACTION_METADATA_UPDATE, ex));
+      if(metadataService.getLastUpdate() == null) {
+        log.error("Metadata is not initialized, exiting... Please restart the application.");
+        System.exit(1);
+      } else {
+        eventPublisher.publishEvent(new ExceptionEvent(ExceptionEvent.ACTION_METADATA_UPDATE, ex));
+      }
     }
   }
 

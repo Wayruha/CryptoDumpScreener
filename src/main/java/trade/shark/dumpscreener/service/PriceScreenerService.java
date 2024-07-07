@@ -50,6 +50,9 @@ public class PriceScreenerService {
     this.priceMapsToMaintain = Math.ceilDiv(longestTimeWindow, properties.getScreeningRateSec());
   }
 
+  /**
+   * Method for fetching token prices and notifying user on dump detection
+   */
   public void detectDumps() {
     if (this.priceMaps.size() >= this.priceMapsToMaintain) {
       this.priceMaps.removeFirst();
@@ -73,6 +76,11 @@ public class PriceScreenerService {
     distinctEvents.forEach(eventPublisher::publishEvent);
   }
 
+  /**
+   * Analyzes price snapshots for specified rule
+   *
+   * @param rule dump detection rule
+   */
   private List<DumpSignalEvent> detectByRule(AppProperties.Rule rule) {
     if (priceMaps.isEmpty()) {
       return List.of();
@@ -88,6 +96,7 @@ public class PriceScreenerService {
 
       final BigDecimal changePercent = MathUtil.calculateSpread(oldPrice, currentPrice);
       if (changePercent.abs().compareTo(rule.getTriggerPercentage()) >= 0) {
+        //TODO handle tokens duplication with different networks
         final Token token = metadataService.getTokenByContract(contract);
         final DumpSignalEvent event = new DumpSignalEvent(
             token,
@@ -102,6 +111,11 @@ public class PriceScreenerService {
     return events;
   }
 
+  /**
+   * Retrieves price snapshot that corresponds to the beginning of a period defined by specified rule
+   *
+   * @param rule dump detection rule
+   */
   private Map<NetworkContract, BigDecimal> getOldPriceMapForRule(AppProperties.Rule rule) {
     if (priceMaps.isEmpty()) {
       return new HashMap<>();

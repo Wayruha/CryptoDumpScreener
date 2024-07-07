@@ -44,6 +44,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Optional.ofNullable;
+
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -66,6 +68,9 @@ public class MetadataService {
   private final Map<NetworkContract, Token> duplicateCoinsMap = new HashMap<>();
   private final Map<Network, List<NetworkContract>> contractsByNetworkMap = new HashMap<>();
 
+  /**
+   * Method for fetching and updating tokens metadata
+   */
   public void updateMetadata() throws ExecutionException, InterruptedException {
     final LocalDateTime start = LocalDateTime.now();
     log.debug("Updating metadata...");
@@ -94,6 +99,9 @@ public class MetadataService {
     return contractsByNetworkMap.get(network);
   }
 
+  /**
+   * Updates metadata snapshots
+   */
   private void updateMetadata(List<Token> filteredTokens) {
     this.lastUpdate = LocalDateTime.now();
     this.coinsData.clear();
@@ -107,6 +115,9 @@ public class MetadataService {
     this.contractsByNetworkMap.putAll(contractsByNetwork);
   }
 
+  /**
+   * Converts CoinGecko tokens to out Tokens
+   */
   @NotNull
   private List<Token> buildTokenData(List<CoinList> coins) {
     final List<Token> tokens = coins.stream()
@@ -179,15 +190,15 @@ public class MetadataService {
     }
   }
 
+  /**
+   * filters tokens by marketCap, liquidity, volume24h
+   * @param tokens tokens to filter
+   */
   private List<Token> filterTokens(List<Token> tokens) {
     long start = System.currentTimeMillis();
     final Map<Token, CoinPriceData> cgMetadata = getCoingeckoMetadata(tokens);
-    Stream<Map.Entry<Token, CoinPriceData>> mdStream = cgMetadata.entrySet().stream()
-        .filter(Objects::nonNull);
-    if (properties.getMarketCap() != null) {
-      mdStream = mdStream.filter(e -> e.getValue().getMarketCap() == null || e.getValue().getMarketCap().compareTo(properties.getMarketCap()) > 0);
-    }
-    List<Token> filteredTokens = mdStream
+    final List<Map.Entry<Token, CoinPriceData>> mdStream = filterByMarketCap(cgMetadata);
+    List<Token> filteredTokens = mdStream.stream()
         .peek(e -> {
           final Token token = e.getKey();
           final CoinPriceData metadata = e.getValue();
@@ -204,7 +215,33 @@ public class MetadataService {
     return filteredTokens;
   }
 
-  //load data from DexScreener
+  /**
+   * Filters tokens by marketCap and marketCapMax
+   * @param cgMetadata metadata retrieved from Coin Gecko
+   */
+  private List<Map.Entry<Token, CoinPriceData>> filterByMarketCap(Map<Token, CoinPriceData> cgMetadata) {
+    Stream<Map.Entry<Token, CoinPriceData>> mdStream = cgMetadata.entrySet().stream()
+        .filter(Objects::nonNull);
+    if (properties.getMarketCap() != null) {
+      mdStream = mdStream
+              .filter(e -> ofNullable(e.getValue().getMarketCap())
+                      .map(mc -> mc.compareTo(properties.getMarketCap()) > 0)
+                      .orElse(true));
+    }
+    if (properties.getMarketCapMax() != null) {
+      mdStream = mdStream
+              .filter(e -> ofNullable(e.getValue().getMarketCap())
+                      .map(mc -> mc.compareTo(properties.getMarketCapMax()) < 0)
+                      .orElse(true));
+    }
+    return mdStream.toList();
+  }
+
+  /**
+   * Loads data from DexScreener
+   * @param tokens tokens to filter
+   * @return list of filtered tokens
+   */
   private List<Token> filterByLiquidityPools(List<Token> tokens) {
     final Set<String> supportedChains = properties.getNetworks().stream()
         .map(Network::getDexScreenerName)
@@ -249,6 +286,10 @@ public class MetadataService {
         .toList();
   }
 
+  /**
+   * Loads tokens trade pairs data on CEXes from CryptoCompare
+   * @param tokens tokens to enrich
+   */
   private void populateTradePair(List<Token> tokens) {
     long start = System.currentTimeMillis();
     AtomicInteger counter = new AtomicInteger();
@@ -279,6 +320,10 @@ public class MetadataService {
     log.debug("Tokens without cryptoCompareSymbol: {}", count);
   }
 
+  /**
+   * Maps our tokens to CryptoCompare tokens
+   * @param tokens tokens to enrich
+   */
   private static void populateCryptoCompareIds(List<Token> tokens, List<AssetData> metadata) {
     long start = System.currentTimeMillis();
     final Map<NetworkContract, AssetData> assetDataMap = metadata.stream()

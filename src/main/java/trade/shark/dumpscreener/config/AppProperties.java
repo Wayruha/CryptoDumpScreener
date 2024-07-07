@@ -28,6 +28,7 @@ public class AppProperties {
   private List<Rule> rules;
   private BigDecimal volume24h;
   private BigDecimal marketCap;
+  private BigDecimal marketCapMax;
   private BigDecimal liquidity;
 
   @Data

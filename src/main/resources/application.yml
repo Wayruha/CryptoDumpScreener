@@ -5,7 +5,7 @@ spring:
     banner-mode: off
 screener:
   stableCoins: USDT,USDC,FDUSD
-  cexes: BINANCE,KUCOIN,GATE,OKX,BITMART,HUOBI
+  cexes: BINANCE,KUCOIN,GATE,OKX,BITMART,HUOBI,BITFINEX,PROBIT,XT,BITRUE,WHITEBIT,BYBIT,MEXC,LBANK,KRAKEN
   networks: ETHEREUM
   maxAllowedPriceChangePercentage: 70
   metadataUpdateRateSec: 86400

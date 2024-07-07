@@ -8,5 +8,10 @@ import java.util.Map;
 
 public interface PriceProvider {
 
+  /**
+   * Extracts price snapshot for given contracts
+   *
+   * @param contracts network contacts to extract price snapshot for
+   */
   Map<NetworkContract, BigDecimal> loadPrices(List<NetworkContract> contracts);
 }

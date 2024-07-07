@@ -10,7 +10,17 @@ public enum CentralizedExchange {
   BITMART("Bitmart", "bitmart"),
   KUCOIN("Kucoin", "kucoin"),
   HUOBI("Huobi", "huobipro"),
-  GATE("Gate", "gateio");
+  GATE("Gate", "gateio"),
+  KRAKEN("Kraken", "kraken"),
+  LBANK("Lbank", "lbank"),
+  MEXC("Mexc", "mexc"),
+  BYBIT("Bybit", "bybit"),
+  WHITEBIT("Whitebit", "whitebit"),
+  BITRUE("Bitrue", "bitrue"),
+  XT("Xt", "xtpub"),
+  PROBIT("Probit", "probit"),
+  BITFINEX("Bitfinex", "bitfinex");
+  //  CRYPTOCOM, not available
 
   @Getter
   private final String name;

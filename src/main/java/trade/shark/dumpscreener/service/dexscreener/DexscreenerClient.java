@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class DexscreenerClient implements PriceProvider {
   public static final int DEXSCREENER_TOKEN_COUNT_THRESHOLD = 25;
-  private static final int REQUESTS_PER_SECOND = 4;
+  private static final int REQUESTS_PER_SECOND = 3;
   private final ForkJoinPool forkJoinPool;
   private final RestTemplate restTemplate;
   private final RateLimiter rateLimiter;
@@ -84,10 +84,10 @@ public class DexscreenerClient implements PriceProvider {
     poolsMetadata.forEach((contract, metadataList) -> {
       final Token token = metadataService.getTokenByContract(contract);
       //todo why it can be null?
-     /* if (token.getDexLiquidityPool() == null) {
+      if (token.getDexLiquidityPool() == null) {
         System.out.println("Empty token: " + token.getSymbol());
         return;
-      }*/
+      }
       metadataList.stream()
           .filter(md -> token.getDexLiquidityPool().getLiquidityPairAddress().equalsIgnoreCase(md.getPairAddress()))
           .findFirst()

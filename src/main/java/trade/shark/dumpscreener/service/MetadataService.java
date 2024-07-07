@@ -263,16 +263,20 @@ public class MetadataService {
           return true;
         }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-    //todo this is not optimised for multi-chains as it will overwrite the same token with different pools info
     contractMetadataMap.forEach((contract, md) -> {
       final Token token = tokensMap.get(contract);
-      final DexLiquidityPool dexPool = DexLiquidityPool.builder()
-          .dexName(md.getDexId())
-          .liquidityPairAddress(md.getPairAddress())
-          .liquidityPoolPair(new TradePair(md.getBaseToken().getSymbol(), md.getQuoteToken().getSymbol()))
-          .poolLiquidityUsd(md.getLiquidity().getUsd())
-          .build();
-      token.setDexLiquidityPool(dexPool);
+      if (token.getDexLiquidityPool() == null ||
+              md.getLiquidity().getUsd() != null &&
+                      token.getDexLiquidityPool().getPoolLiquidityUsd().compareTo(md.getLiquidity().getUsd()) < 0) {
+        final DexLiquidityPool dexPool = DexLiquidityPool.builder()
+                .dexName(md.getDexId())
+                .liquidityPairAddress(md.getPairAddress())
+                .liquidityPoolPair(new TradePair(md.getBaseToken().getSymbol(), md.getQuoteToken().getSymbol()))
+                .poolLiquidityUsd(md.getLiquidity().getUsd())
+                .build();
+        token.setDexLiquidityPool(dexPool);
+        token.setPrimaryContract(contract);
+      }
     });
 
     final Set<String> filteredAddresses = contractMetadataMap.keySet().stream()
@@ -367,5 +371,12 @@ public class MetadataService {
         .flatMap(token -> token.getContracts().stream())
         .distinct()
         .collect(Collectors.toList());
+  }
+
+  public List<NetworkContract> getPrimaryTokenContracts() {
+    return coinsData.stream()
+            .map(Token::getPrimaryContract)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
   }
 }

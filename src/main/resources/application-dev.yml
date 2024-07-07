@@ -6,7 +6,7 @@ screener:
   volume24H: 20000
   liquidity: 50000
   marketCap: 100000
-  marketCapMax: 10000000
+  marketCapMax: 400000000
 
   # rules:
   rules[0].timeWindowSec: 20

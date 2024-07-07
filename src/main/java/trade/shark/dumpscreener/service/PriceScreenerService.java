@@ -60,7 +60,7 @@ public class PriceScreenerService {
     final PriceSnapshot snapshot = new PriceSnapshot(LocalDateTime.now(), metadataService.getTokens().size());
     this.priceMaps.add(snapshot);
 
-    final Map<NetworkContract, BigDecimal> currentPrices = priceProvider.loadPrices(metadataService.getTokenContracts());
+    final Map<NetworkContract, BigDecimal> currentPrices = priceProvider.loadPrices(metadataService.getPrimaryTokenContracts());
     snapshot.getPrices().putAll(currentPrices);
 
     final List<DumpSignalEvent> detectedEvents = properties.getRules().stream()

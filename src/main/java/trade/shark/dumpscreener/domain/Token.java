@@ -30,6 +30,7 @@ public class Token implements TokenMetadata {
   @EqualsAndHashCode.Exclude
   @ToString.Exclude
   private List<NetworkContract> contracts;
+  private NetworkContract primaryContract;
 
   //returns the primary token contract
   @Override

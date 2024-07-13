@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -60,7 +61,8 @@ public class PriceScreenerService {
     final PriceSnapshot snapshot = new PriceSnapshot(LocalDateTime.now(), metadataService.getTokens().size());
     this.priceMaps.add(snapshot);
 
-    final Map<NetworkContract, BigDecimal> currentPrices = priceProvider.loadPrices(metadataService.getPrimaryTokenContracts());
+    final List<NetworkContract> primaryTokenContracts = getPrimaryTokenContracts(metadataService.getTokens());
+    final Map<NetworkContract, BigDecimal> currentPrices = priceProvider.loadPrices(primaryTokenContracts);
     snapshot.getPrices().putAll(currentPrices);
 
     final List<DumpSignalEvent> detectedEvents = properties.getRules().stream()
@@ -123,6 +125,13 @@ public class PriceScreenerService {
     final int timeWindowIndex = priceMaps.size() - (int) Math.ceilDiv(rule.getTimeWindowSec(), properties.getScreeningRateSec());
     int snapshotIndex = Math.max(0, timeWindowIndex);
     return priceMaps.get(Math.min(snapshotIndex, priceMaps.size() - 1)).getPrices();
+  }
+
+  public List<NetworkContract> getPrimaryTokenContracts(List<Token> tokens) {
+    return tokens.stream()
+        .map(Token::getPrimaryContract)
+        .filter(Objects::nonNull)
+        .collect(Collectors.toList());
   }
 
   @Getter

@@ -32,14 +32,6 @@ public class Token implements TokenMetadata {
   private List<NetworkContract> contracts;
   private NetworkContract primaryContract;
 
-  //returns the primary token contract
-  @Override
-  public NetworkContract getIdentityContract() {
-    //todo may not be an optional implementation.
-    // Let's consider case when original token is in ETH but there's also a bridged token in BSC
-    return contracts.stream().findFirst().orElse(null);
-  }
-
   public String getContractAddress(Network network) {
     return contracts.stream()
         .filter(contract -> contract.getNetwork() == network)

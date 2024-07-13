@@ -7,5 +7,5 @@ public interface TokenMetadata {
 
   Long deploymentTime();
 
-  NetworkContract getIdentityContract();
+  NetworkContract getPrimaryContract();
 }

@@ -84,11 +84,7 @@ public class DexscreenerClient implements PriceProvider {
     final Map<NetworkContract, PoolMetadata> poolMetadataMap = new HashMap<>();
     poolsMetadata.forEach((contract, metadataList) -> {
       final Token token = metadataService.getTokenByContract(contract);
-      //todo why it can be null?
-      if (token.getDexLiquidityPool() == null) {
-        System.out.println("Empty token: " + token.getSymbol());
-        return;
-      }
+   
       metadataList.stream()
           .filter(md -> token.getDexLiquidityPool().getLiquidityPairAddress().equalsIgnoreCase(md.getPairAddress()))
           .findFirst()

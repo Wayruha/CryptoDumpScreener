@@ -175,7 +175,7 @@ public class MetadataService {
     final Map<Token, CoinPriceData> resultMetadata = tokens.stream()
         .filter(token -> runningMetadataMap.containsKey(token.getCoingeckoId()))
         .collect(Collectors.toMap(token -> token, token -> runningMetadataMap.get(token.getCoingeckoId())));
-    log.debug("Fetched CoinGecko metadata: {} items, {}ms.", resultMetadata.size(), System.currentTimeMillis() - start);
+    log.debug("Fetched CoinGecko metadata: {} items, {}s.", resultMetadata.size(), (System.currentTimeMillis() - start) / 1000);
     return resultMetadata;
   }
 
@@ -207,11 +207,11 @@ public class MetadataService {
         })
         .map(Map.Entry::getKey)
         .toList();
-    log.debug("filtered tokens by general metadata: {} items, {}ms", filteredTokens.size(), System.currentTimeMillis() - start);
+    log.debug("filtered tokens by general metadata: {} items, {}s", filteredTokens.size(), (System.currentTimeMillis() - start) / 1000);
 
     start = System.currentTimeMillis();
     filteredTokens = filterByLiquidityPools(filteredTokens);
-    log.debug("filtered tokens by pool metadata: {} items, {}ms", filteredTokens.size(), System.currentTimeMillis() - start);
+    log.debug("filtered tokens by pool metadata: {} items, {}s", filteredTokens.size(), (System.currentTimeMillis() - start) / 1000);
     return filteredTokens;
   }
 
@@ -373,19 +373,5 @@ public class MetadataService {
 
   public List<Token> getTokens() {
     return new ArrayList<>(coinsData);
-  }
-
-  public List<NetworkContract> getTokenContracts() {
-    return coinsData.stream()
-        .flatMap(token -> token.getContracts().stream())
-        .distinct()
-        .collect(Collectors.toList());
-  }
-
-  public List<NetworkContract> getPrimaryTokenContracts() {
-    return coinsData.stream()
-            .map(Token::getPrimaryContract)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
   }
 }

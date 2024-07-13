@@ -28,9 +28,9 @@ public class TgNotificationService {
   private static final String MSG_DIVIDER = "---------------------\n";
   private static final String SIGNAL_MSG_TEMPLATE = """
       *${symbol}/${priceChangePercent}%*
-              
-      Address: [${tokenAddress}](${tokenURL})
       Network: `${tokenNetwork}`
+      Address: [${tokenAddress}](${tokenURL})
+      
       Name: *${tokenName}*
       TimeWindow: ${detectionTimeWindow} sec
       MarketCap: ${tokenMarketCap}$
@@ -66,7 +66,7 @@ public class TgNotificationService {
   public static String toTgDisplayText(DumpSignalEvent event) {
     final Token token = event.getToken();
     final Network network = event.getNetwork();
-    final StringBuilder bldr = new StringBuilder(MSG_DIVIDER);
+    final StringBuilder bldr = new StringBuilder();
     final Optional<DexLiquidityPool> dexLP = ofNullable(token.getDexLiquidityPool());
     bldr.append(SIGNAL_MSG_TEMPLATE.replace("${symbol}", token.getSymbol().toUpperCase())
         .replace("${priceChangePercent}", getFormattedSpread(event.getChangePercentage()))

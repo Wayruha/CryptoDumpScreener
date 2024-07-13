@@ -62,7 +62,7 @@ public class EventHandler {
       DumpScreenerApplication.CLI_LOG.info(displayText);
       sendSignalNotifications(event);
     } catch (Exception ex) {
-      log.error("Error processing dump signal for  {}", event.getToken().getIdentityContract(), ex);
+      log.error("Error processing dump signal for  {}", event.getToken().getPrimaryContract(), ex);
     }
   }
 
@@ -88,7 +88,7 @@ public class EventHandler {
     try {
       notificationService.sendNotifications(event);
     } catch (NotificationException ex) {
-      log.error("Error sending notifications for  {}", event.getToken().getIdentityContract(), ex);
+      log.error("Error sending notifications for  {}", event.getToken().getPrimaryContract(), ex);
     }
   }
 
@@ -101,9 +101,9 @@ public class EventHandler {
         final CexSpread value = new CexSpread(exchange, cexPrice, spread);
         options.put(exchange, value);
       });
-      log.info("CEX options loaded for {}: {}", token.getIdentityContract(), options);
+      log.info("CEX options loaded for {}: {}", token.getPrimaryContract(), options);
     } catch (Exception ex) {
-      log.error("Error loading CEX options for token {}", token.getIdentityContract(), ex);
+      log.error("Error loading CEX options for token {}", token.getPrimaryContract(), ex);
     }
     return options;
   }

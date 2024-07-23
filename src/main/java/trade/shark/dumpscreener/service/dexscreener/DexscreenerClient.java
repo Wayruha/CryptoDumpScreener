@@ -45,6 +45,7 @@ public class DexscreenerClient implements PriceProvider {
     this.rateLimiter = RateLimiter.create(REQUESTS_PER_SECOND);
   }
 
+  @Deprecated
   @SneakyThrows
   public Map<NetworkContract, PoolMetadata> loadPoolMetadata(Collection<NetworkContract> networkContracts) {
     final Map<NetworkContract, List<PoolMetadata>> allPools = loadLiquidityPools(networkContracts);
@@ -63,7 +64,7 @@ public class DexscreenerClient implements PriceProvider {
   }
 
   @SneakyThrows
-  private Map<NetworkContract, List<PoolMetadata>> loadLiquidityPools(Collection<NetworkContract> networkContracts) {
+  public Map<NetworkContract, List<PoolMetadata>> loadLiquidityPools(Collection<NetworkContract> networkContracts) {
     final Map<String, NetworkContract> addressContractMap = networkContracts.stream()
         .collect(Collectors.toMap(NetworkContract::getContractAddress, Function.identity(), (existing, replacement) -> replacement));
     final List<String> addresses = addressContractMap.keySet().stream().toList();
@@ -97,7 +98,7 @@ public class DexscreenerClient implements PriceProvider {
   }
 
   @NotNull
-  private Map<NetworkContract, PoolMetadata> leaveOnlyBiggestPoolPerContract(Map<NetworkContract, List<PoolMetadata>> poolsMetadata) {
+  public Map<NetworkContract, PoolMetadata> leaveOnlyBiggestPoolPerContract(Map<NetworkContract, List<PoolMetadata>> poolsMetadata) {
     final Map<NetworkContract, PoolMetadata> poolMetadataMap = new HashMap<>();
     poolsMetadata.forEach((contract, metadataList) -> {
       metadataList.stream()

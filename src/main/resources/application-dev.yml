@@ -3,14 +3,14 @@ logging:
 
 screener:
   networks: ETHEREUM,ARBITRUM,POLYGON,BSC,BASE,SOLANA
-  volume24H: 20000
+  volume24H: 10000
   liquidity: 50000
   marketCap: 100000
   marketCapMax: 400000000
 
   # rules:
-  rules[0].timeWindowSec: 20
-  rules[0].triggerPercentage: 10
+  rules[0].timeWindowSec: 10
+  rules[0].triggerPercentage: 20
 
-  rules[1].timeWindowSec: 40
-  rules[1].triggerPercentage: 15
+  rules[1].timeWindowSec: 20
+  rules[1].triggerPercentage: 30

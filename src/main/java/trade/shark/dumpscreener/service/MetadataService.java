@@ -251,17 +251,26 @@ public class MetadataService {
         .flatMap(token -> token.getContracts().stream().map(contract -> new AbstractMap.SimpleEntry<>(contract, token)))
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (oldValue, newValue) -> oldValue));
 
-    Map<NetworkContract, PoolMetadata> contractMetadataMap = dexscreenerClient.loadPoolMetadata(tokensMap.keySet());
-    contractMetadataMap = contractMetadataMap.entrySet().stream()
-        .filter(e -> {
-          final PoolMetadata poolMetadata = e.getValue();
-          if (poolMetadata.getChainId() == null || !supportedChains.contains(poolMetadata.getChainId())) return false;
-          if (properties.getLiquidity() != null && (poolMetadata.getLiquidity() == null || properties.getLiquidity().compareTo(poolMetadata.getLiquidity().getUsd()) > 0))
-            return false;
-          if (properties.getVolume24h() != null && (poolMetadata.getVolume().get("h24") == null || properties.getVolume24h().compareTo(poolMetadata.getVolume().get("h24")) > 0))
-            return false;
-          return true;
-        }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    final Map<NetworkContract, List<PoolMetadata>> filteredMap = dexscreenerClient.loadLiquidityPools(tokensMap.keySet())
+            .entrySet().stream()
+            .map(entry -> {
+              List<PoolMetadata> filteredPools = entry.getValue().stream()
+                      .filter(poolMetadata -> {
+                        if (poolMetadata.getChainId() == null || !supportedChains.contains(poolMetadata.getChainId())) return false;
+                        if (properties.getLiquidity() != null &&
+                                (poolMetadata.getLiquidity() == null || properties.getLiquidity().compareTo(poolMetadata.getLiquidity().getUsd()) > 0))
+                          return false;
+                        if (properties.getVolume24h() != null &&
+                                (poolMetadata.getVolume().get("h24") == null || properties.getVolume24h().compareTo(poolMetadata.getVolume().get("h24")) > 0))
+                          return false;
+                        return true;
+                      })
+                      .toList();
+              return new AbstractMap.SimpleEntry<>(entry.getKey(), filteredPools);
+            })
+            .filter(entry -> !entry.getValue().isEmpty())
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    final Map<NetworkContract, PoolMetadata> contractMetadataMap = dexscreenerClient.leaveOnlyBiggestPoolPerContract(filteredMap);
 
     contractMetadataMap.forEach((contract, md) -> {
       final Token token = tokensMap.get(contract);

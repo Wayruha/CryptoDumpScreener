@@ -40,7 +40,7 @@ public class Bootstrap {
   }
 
   @Async
-  @Scheduled(fixedDelayString = "${screener.screeningRateSec}", initialDelayString = "${screener.initialDelaySec}", timeUnit = TimeUnit.SECONDS)
+  @Scheduled(fixedRateString = "${screener.screeningRateSec}", initialDelayString = "${screener.initialDelaySec}", timeUnit = TimeUnit.SECONDS)
   public void startScreening() {
     try {
       if (metadataService.getLastUpdate() == null) {

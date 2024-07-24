@@ -9,8 +9,8 @@ screener:
   marketCapMax: 400000000
 
   # rules:
-  rules[0].timeWindowSec: 10
+  rules[0].timeWindowSec: 20
   rules[0].triggerPercentage: 20
 
-  rules[1].timeWindowSec: 20
+  rules[1].timeWindowSec: 40
   rules[1].triggerPercentage: 30

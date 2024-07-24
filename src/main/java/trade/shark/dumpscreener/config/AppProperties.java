@@ -18,7 +18,7 @@ import static org.apache.commons.lang3.StringUtils.isBlank;
 public class AppProperties {
   private List<String> stableCoins;
   private List<Network> networks;
-  private List<CentralizedExchange> cexes;
+  private List<CentralizedExchange> cexes = List.of(CentralizedExchange.values());
   private CoinGecko coingecko;
   private CryptoCompare cryptoCompare;
   private OneInch oneInch;

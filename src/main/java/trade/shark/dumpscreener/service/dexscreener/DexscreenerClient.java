@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class DexscreenerClient implements PriceProvider {
   public static final int DEXSCREENER_TOKEN_COUNT_THRESHOLD = 25;
-  private static final int REQUESTS_PER_SECOND = 3;
+  private static final int REQUESTS_PER_SECOND = 4;
   private final ForkJoinPool forkJoinPool;
   private final RestTemplate restTemplate;
   private final RateLimiter rateLimiter;
@@ -43,13 +43,6 @@ public class DexscreenerClient implements PriceProvider {
     this.restTemplate = restTemplate;
     this.metadataService = metadataService;
     this.rateLimiter = RateLimiter.create(REQUESTS_PER_SECOND);
-  }
-
-  @Deprecated
-  @SneakyThrows
-  public Map<NetworkContract, PoolMetadata> loadPoolMetadata(Collection<NetworkContract> networkContracts) {
-    final Map<NetworkContract, List<PoolMetadata>> allPools = loadLiquidityPools(networkContracts);
-    return leaveOnlyBiggestPoolPerContract(allPools);
   }
 
   @SneakyThrows
@@ -84,7 +77,7 @@ public class DexscreenerClient implements PriceProvider {
     final Map<NetworkContract, PoolMetadata> poolMetadataMap = new HashMap<>();
     poolsMetadata.forEach((contract, metadataList) -> {
       final Token token = metadataService.getTokenByContract(contract);
-   
+
       metadataList.stream()
           .filter(md -> token.getDexLiquidityPool().getLiquidityPairAddress().equalsIgnoreCase(md.getPairAddress()))
           .findFirst()

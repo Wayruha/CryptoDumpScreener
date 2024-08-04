@@ -25,7 +25,7 @@ public class AppProperties {
   private Long metadataUpdateRateSec;
   private Long screeningRateSec;
   private BigDecimal maxAllowedPriceChangePercentage = new BigDecimal(100);
-  private List<Rule> rules;
+  private List<MonitoringRule> rules;
   private BigDecimal volume24h;
   private BigDecimal marketCap;
   private BigDecimal marketCapMax;
@@ -44,12 +44,6 @@ public class AppProperties {
   @Data
   public static class OneInch {
     private String apiKey;
-  }
-
-  @Data
-  public static class Rule {
-    private BigDecimal triggerPercentage;
-    private Long timeWindowSec;
   }
 
   @PostConstruct
@@ -72,7 +66,7 @@ public class AppProperties {
       throw new IllegalArgumentException("screeningRateSec should be at least 10seconds");
     }
 
-    if(rules == null || rules.isEmpty()){
+    if (rules == null || rules.isEmpty()) {
       throw new IllegalArgumentException("At least one detection rule should be defined.");
     }
   }

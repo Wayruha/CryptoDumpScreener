@@ -23,7 +23,8 @@ import static trade.shark.dumpscreener.util.MathUtil.getFormattedSpread;
 @Slf4j
 public class TgNotificationService {
   private static final String DEX_1inch = "1inch";
-
+  private static final String LOW_VOLUME_MSG_MARKER = "😑";
+  private static final String WARNING_MSG_MARKER = "⚠️";
   private static final String SIGNAL_CEXES_TEMPLATE = "  ${exchange}: `${price}, ${spread}%`\n";
   private static final String MSG_DIVIDER = "---------------------\n";
   private static final String SIGNAL_MSG_TEMPLATE = """
@@ -68,13 +69,19 @@ public class TgNotificationService {
     final Network network = event.getNetwork();
     final StringBuilder bldr = new StringBuilder();
     final Optional<DexLiquidityPool> dexLP = ofNullable(token.getDexLiquidityPool());
+
+    if (event.getLowVolumeChange() == null) {
+      bldr.append(WARNING_MSG_MARKER);
+    } else if (event.getLowVolumeChange()) {
+      bldr.append(LOW_VOLUME_MSG_MARKER);
+    }
     bldr.append(SIGNAL_MSG_TEMPLATE.replace("${symbol}", token.getSymbol().toUpperCase())
         .replace("${priceChangePercent}", getFormattedSpread(event.getChangePercentage()))
         .replace("${tokenAddress}", token.getContractAddress(network))
         .replace("${tokenURL}", buildTokenUrl(token, network))
         .replace("${tokenNetwork}", network.toString())
         .replace("${tokenName}", token.getName())
-        .replace("${detectionTimeWindow}", valueOf(event.getMonitoredTimeWindow().getSeconds()))
+        .replace("${detectionTimeWindow}", valueOf(event.getDetectedRule().getTimeWindowSec()))
         .replace("${volume24H}", alternativeMoneyFormat(token.getUsdVolume24H()))
         .replace("${tokenMarketCap}", alternativeMoneyFormat(token.getMarketCap()))
         .replace("${tokenAge}", token.getDeploymentTime() != null ? calculateAgeInDays(token.getDeploymentTime()) + " days" : "--")
@@ -95,7 +102,7 @@ public class TgNotificationService {
     return bldr.toString();
   }
 
-  private static String buildTokenUrl(Token token, Network network){
+  private static String buildTokenUrl(Token token, Network network) {
     return "https://dexscreener.com/" + network.toString().toLowerCase() + "/" + token.getContractAddress(network);
   }
 }

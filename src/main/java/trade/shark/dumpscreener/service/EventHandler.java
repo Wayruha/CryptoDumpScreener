@@ -6,36 +6,50 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import trade.shark.dumpscreener.DumpScreenerApplication;
 import trade.shark.dumpscreener.config.AppProperties;
+import trade.shark.dumpscreener.config.MonitoringRule;
 import trade.shark.dumpscreener.domain.CexSpread;
+import trade.shark.dumpscreener.domain.NetworkContract;
 import trade.shark.dumpscreener.domain.Token;
 import trade.shark.dumpscreener.enums.CentralizedExchange;
 import trade.shark.dumpscreener.event.DumpSignalEvent;
 import trade.shark.dumpscreener.event.ExceptionEvent;
 import trade.shark.dumpscreener.event.MetadataRefreshedEvent;
 import trade.shark.dumpscreener.exception.NotificationException;
+import trade.shark.dumpscreener.service.geckoterminal.LPTransaction;
 
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.ZonedDateTime;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static trade.shark.dumpscreener.util.MathUtil.calculateDeviation;
 import static trade.shark.dumpscreener.util.MathUtil.calculateSpread;
 
 @Slf4j
 @Component
 public class EventHandler {
+  private static final int RElEVANT_TRADES_TIMEWINDOW_MILTIPLIER = 2;
+  private static final int MAX_RELEVANT_TRADES = 5;
+  private static final BigDecimal ULTRA_LOW_VOLUME_THD = new BigDecimal(10);
+  private static final BigDecimal SIMILAR_PRICE_DEVIATION_FRACTION_THD = new BigDecimal("0.03");
+
   private final AppProperties appProperties;
   private final CexService cexService;
+  private final GeckoTerminalService dexTransactionService;
   private final TgNotificationService notificationService;
   private final BigDecimal changeThreshold;
 
-  public EventHandler(AppProperties appProperties, CexService cexService, TgNotificationService notificationService) {
+  public EventHandler(AppProperties appProperties, CexService cexService, GeckoTerminalService dexTransactionService, TgNotificationService notificationService) {
     this.appProperties = appProperties;
     this.cexService = cexService;
+    this.dexTransactionService = dexTransactionService;
     this.notificationService = notificationService;
     final BigDecimal maxTriggerByRules = appProperties.getRules().stream()
-        .map(AppProperties.Rule::getTriggerPercentage)
+        .map(MonitoringRule::getTriggerPercentage)
         .max(Comparator.comparing(Function.identity()))
         .orElse(new BigDecimal(100));
     this.changeThreshold = maxTriggerByRules.max(appProperties.getMaxAllowedPriceChangePercentage());
@@ -54,6 +68,8 @@ public class EventHandler {
         log.warn("Change percentage {} is greater than threshold {}. Skipping.", event.getChangePercentage(), changeThreshold);
         return;
       }
+
+      checkTransactionVolumeStatus(event);
 
       final Map<CentralizedExchange, CexSpread> options = loadCexOptions(event.getToken(), event.getCurrentPrice());
       event.setCexOptions(options);
@@ -106,5 +122,34 @@ public class EventHandler {
       log.error("Error loading CEX options for token {}", token.getPrimaryContract(), ex);
     }
     return options;
+  }
+
+  public void checkTransactionVolumeStatus(DumpSignalEvent event) {
+    try {
+      final NetworkContract lpAddress = NetworkContract.of(event.getToken().getDexLiquidityPool().getLiquidityPairAddress(), event.getNetwork());
+      final Long monitoredWindow = event.getDetectedRule().getTimeWindowSec();
+
+      final List<LPTransaction> trades = dexTransactionService.loadPoolTransactions(lpAddress)
+          .stream()
+          .sorted(Comparator.comparing(LPTransaction::getBlockTimestamp).reversed())
+          .limit(MAX_RELEVANT_TRADES)
+          .toList();
+      final ZonedDateTime lastTradeDate = trades.get(0).getBlockTimestamp();
+      final List<LPTransaction> timeRelevantTrades = trades.stream()
+          .filter(t -> Duration.between(t.getBlockTimestamp(), lastTradeDate).getSeconds() < monitoredWindow * RElEVANT_TRADES_TIMEWINDOW_MILTIPLIER)
+          .filter(t -> calculateDeviation(t.getPriceToInUsd(), event.getCurrentPrice()).compareTo(SIMILAR_PRICE_DEVIATION_FRACTION_THD) < 0)
+          .toList();
+
+      boolean allTradesWithCurrentPriceAreLowVolume = !timeRelevantTrades.isEmpty() && timeRelevantTrades.stream().allMatch(t -> t.getVolumeInUsd().compareTo(ULTRA_LOW_VOLUME_THD) < 0);
+
+      if (allTradesWithCurrentPriceAreLowVolume) {
+        log.warn("Low volume trades trigger signal. Event:{}, trades: {}", event, trades);
+        event.setLowVolumeChange(true);
+      } else {
+        event.setLowVolumeChange(false);
+      }
+    } catch (Exception ex) {
+      log.error("Error while checking last trades for {}.", event, ex);
+    }
   }
 }

@@ -38,7 +38,7 @@ public class NetworkContract {
     if (contractAddress == null) {
       return null;
     }
-    return contractAddress.toUpperCase();
+    return network == Network.SOLANA ? contractAddress : contractAddress.toUpperCase();
   }
 
 }

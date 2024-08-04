@@ -22,12 +22,6 @@ import java.util.concurrent.ForkJoinPool;
 @Configuration
 public class ApplicationConfig {
 
-/*  @Bean
-  public ExecutorService executor() {
-    //todo use more, depending on the CEXes count
-    return Executors.newFixedThreadPool(4);
-  }*/
-
   @Bean(name = "dexScreenerThreadPool")
   public ForkJoinPool forkJoinPool() {
     return new ForkJoinPool(4);

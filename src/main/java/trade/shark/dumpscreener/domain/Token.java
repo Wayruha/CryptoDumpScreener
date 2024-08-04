@@ -23,13 +23,13 @@ public class Token implements TokenMetadata {
   private Long deploymentTime;
   private BigDecimal marketCap;
   private BigDecimal usdVolume24H;
-  private DexLiquidityPool dexLiquidityPool;
   @EqualsAndHashCode.Exclude
   @ToString.Exclude
   private Map<CentralizedExchange, TradePair> tradePairs;
   @EqualsAndHashCode.Exclude
   @ToString.Exclude
   private List<NetworkContract> contracts;
+  private DexLiquidityPool dexLiquidityPool;
   private NetworkContract primaryContract;
 
   public String getContractAddress(Network network) {

@@ -13,7 +13,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-@Component
+/**
+ * Currently not used.
+ * TODO carefully consider usage of toLower/upperCase as Solana contracts should be case sensitive (requirement of GeckoTerminal)
+ */
+//@Component
 @RequiredArgsConstructor
 public class OneInchPriceProvider implements PriceProvider {
   public static final int ONEINCH_TOKEN_COUNT_THRESHOLD = 10000;

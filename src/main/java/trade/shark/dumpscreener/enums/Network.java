@@ -9,18 +9,19 @@ import java.util.stream.Stream;
 @AllArgsConstructor
 @Getter
 public enum Network {
-  ETHEREUM("ethereum", "ETH", Chain.ETHEREUM, "ethereum"),
-  ARBITRUM("arbitrum", "ARB", Chain.ARBITRUM, "arbitrum"),
-  SOLANA("solana", "SOL", null, "solana"),
-  AVAX("avalanche", "AVAX", Chain.AVALANCHE, "avalanche"),
-  POLYGON("polygon-pos", "MATIC", Chain.POLYGON, "polygon"),
-  BSC("binance-smart-chain", "BNB", Chain.BSC, "bsc"),
-  BASE("base", "BASECHAIN", Chain.BASE, "base");
+  ETHEREUM("ethereum", "ETH", Chain.ETHEREUM, "ethereum", "eth"),
+  ARBITRUM("arbitrum", "ARB", Chain.ARBITRUM, "arbitrum", "arbitrum"),
+  SOLANA("solana", "SOL", null, "solana", "solana"),
+  AVAX("avalanche", "AVAX", Chain.AVALANCHE, "avalanche", "avax"),
+  POLYGON("polygon-pos", "MATIC", Chain.POLYGON, "polygon", "polygon_pos"),
+  BSC("binance-smart-chain", "BNB", Chain.BSC, "bsc", "bsc"),
+  BASE("base", "BASECHAIN", Chain.BASE, "base", "base");
 
   final String coingeckoName;
   final String cryptoCompareName;
   final Chain oneInchChain;
   final String dexScreenerName;
+  final String geckoTerminalName;
 
   public static Network getByCoingeckoName(String cgName) {
     return Stream.of(values())

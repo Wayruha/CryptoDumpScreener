@@ -5,13 +5,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import trade.shark.dumpscreener.config.AppProperties;
+import trade.shark.dumpscreener.config.MonitoringRule;
 import trade.shark.dumpscreener.domain.NetworkContract;
 import trade.shark.dumpscreener.domain.Token;
 import trade.shark.dumpscreener.event.DumpSignalEvent;
 import trade.shark.dumpscreener.util.MathUtil;
 
 import java.math.BigDecimal;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -45,10 +45,10 @@ public class PriceScreenerService {
     this.eventPublisher = eventPublisher;
     this.priceProvider = priceProvider;
     final Long longestTimeWindow = properties.getRules().stream()
-        .map(AppProperties.Rule::getTimeWindowSec)
+        .map(MonitoringRule::getTimeWindowSec)
         .max(Long::compareTo)
         .orElse(0L);
-    this.priceMapsToMaintain = Math.ceilDiv(longestTimeWindow, properties.getScreeningRateSec());
+    this.priceMapsToMaintain = Math.ceilDiv(longestTimeWindow, properties.getScreeningRateSec()) + 1;
   }
 
   /**
@@ -73,7 +73,7 @@ public class PriceScreenerService {
         .collect(Collectors.toMap(
             DumpSignalEvent::getToken,
             Function.identity(),
-            (e1, e2) -> e1.getMonitoredTimeWindow().compareTo(e2.getMonitoredTimeWindow()) >= 0 ? e1 : e2))
+            (e1, e2) -> e1.getDetectedRule().compareTo(e2.getDetectedRule()) >= 0 ? e1 : e2))
         .values();
     distinctEvents.forEach(eventPublisher::publishEvent);
   }
@@ -83,7 +83,7 @@ public class PriceScreenerService {
    *
    * @param rule dump detection rule
    */
-  private List<DumpSignalEvent> detectByRule(AppProperties.Rule rule) {
+  private List<DumpSignalEvent> detectByRule(MonitoringRule rule) {
     if (priceMaps.isEmpty()) {
       return List.of();
     }
@@ -106,7 +106,7 @@ public class PriceScreenerService {
             currentPrice,
             currentPrice.subtract(oldPrice),
             changePercent,
-            Duration.ofSeconds(rule.getTimeWindowSec()));
+            rule);
         events.add(event);
       }
     });
@@ -118,13 +118,13 @@ public class PriceScreenerService {
    *
    * @param rule dump detection rule
    */
-  private Map<NetworkContract, BigDecimal> getOldPriceMapForRule(AppProperties.Rule rule) {
+  private Map<NetworkContract, BigDecimal> getOldPriceMapForRule(MonitoringRule rule) {
     if (priceMaps.isEmpty()) {
       return new HashMap<>();
     }
-    final int timeWindowIndex = priceMaps.size() - (int) Math.ceilDiv(rule.getTimeWindowSec(), properties.getScreeningRateSec());
-    int snapshotIndex = Math.max(0, timeWindowIndex);
-    return priceMaps.get(Math.min(snapshotIndex, priceMaps.size() - 1)).getPrices();
+    final int timeWindowIndex = priceMaps.size() - 1 - (int) Math.ceilDiv(rule.getTimeWindowSec(), properties.getScreeningRateSec());
+    final int boundedIndex = Math.min(Math.max(0, timeWindowIndex), priceMaps.size() - 1);
+    return priceMaps.get(boundedIndex).getPrices();
   }
 
   public List<NetworkContract> getPrimaryTokenContracts(List<Token> tokens) {

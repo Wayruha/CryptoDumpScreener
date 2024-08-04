@@ -14,8 +14,4 @@ public class DexLiquidityPool {
   private TradePair liquidityPoolPair;
   private String liquidityPairAddress;
   private BigDecimal poolLiquidityUsd;
-
-  public String getLiquidityPairAddress() {
-    return liquidityPairAddress != null ? liquidityPairAddress.toUpperCase() : null;
-  }
 }

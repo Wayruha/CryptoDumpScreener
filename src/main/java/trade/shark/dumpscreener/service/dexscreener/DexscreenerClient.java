@@ -59,7 +59,7 @@ public class DexscreenerClient implements PriceProvider {
   @SneakyThrows
   public Map<NetworkContract, List<PoolMetadata>> loadLiquidityPools(Collection<NetworkContract> networkContracts) {
     final Map<String, NetworkContract> addressContractMap = networkContracts.stream()
-        .collect(Collectors.toMap(NetworkContract::getContractAddress, Function.identity(), (existing, replacement) -> replacement));
+        .collect(Collectors.toMap(nc -> nc.getContractAddress().toUpperCase(), Function.identity(), (existing, replacement) -> replacement));
     final List<String> addresses = addressContractMap.keySet().stream().toList();
     return forkJoinPool.submit(() -> {
       return Lists.partition(addresses, DEXSCREENER_TOKEN_COUNT_THRESHOLD).parallelStream()
@@ -67,8 +67,8 @@ public class DexscreenerClient implements PriceProvider {
           .filter(Objects::nonNull)
           .filter(response -> response.getPairs() != null)
           .flatMap(response -> response.getPairs().stream())
-          .filter(poolMetadata -> addressContractMap.containsKey(poolMetadata.getBaseToken().getAddress().toUpperCase()))
-          .collect(Collectors.groupingBy(poolMetadata -> addressContractMap.get(poolMetadata.getBaseToken().getAddress().toUpperCase())));
+          .filter(poolMetadata -> addressContractMap.containsKey(getTokenAddress(poolMetadata)))
+          .collect(Collectors.groupingBy(poolMetadata -> addressContractMap.get(getTokenAddress(poolMetadata))));
     }).get();
   }
 
@@ -109,5 +109,9 @@ public class DexscreenerClient implements PriceProvider {
       log.error("Exception loading contracts: {}", contracts, exception);
       return null;
     }
+  }
+
+  private static String getTokenAddress(PoolMetadata poolMetadata) {
+    return poolMetadata.getBaseToken().getAddress().toUpperCase();
   }
 }

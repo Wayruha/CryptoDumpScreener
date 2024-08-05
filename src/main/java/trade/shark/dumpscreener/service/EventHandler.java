@@ -8,6 +8,7 @@ import trade.shark.dumpscreener.DumpScreenerApplication;
 import trade.shark.dumpscreener.config.AppProperties;
 import trade.shark.dumpscreener.config.MonitoringRule;
 import trade.shark.dumpscreener.domain.CexSpread;
+import trade.shark.dumpscreener.domain.DexLiquidityPool;
 import trade.shark.dumpscreener.domain.NetworkContract;
 import trade.shark.dumpscreener.domain.Token;
 import trade.shark.dumpscreener.enums.CentralizedExchange;
@@ -33,15 +34,15 @@ import static trade.shark.dumpscreener.util.MathUtil.calculateSpread;
 @Component
 public class EventHandler {
   private static final int RElEVANT_TRADES_TIMEWINDOW_MILTIPLIER = 2;
-  private static final int MAX_RELEVANT_TRADES = 5;
-  private static final BigDecimal ULTRA_LOW_VOLUME_THD = new BigDecimal(10);
-  private static final BigDecimal SIMILAR_PRICE_DEVIATION_FRACTION_THD = new BigDecimal("0.03");
+  private static final int MAX_RELEVANT_TRADES = 30;
+  private static final BigDecimal SIMILAR_PRICE_DEVIATION_FRACTION_THD = new BigDecimal("0.05");
 
   private final AppProperties appProperties;
   private final CexService cexService;
   private final GeckoTerminalService dexTransactionService;
   private final TgNotificationService notificationService;
   private final BigDecimal changeThreshold;
+  private final BigDecimal fakeTradeVolumeThreshold;
 
   public EventHandler(AppProperties appProperties, CexService cexService, GeckoTerminalService dexTransactionService, TgNotificationService notificationService) {
     this.appProperties = appProperties;
@@ -53,6 +54,7 @@ public class EventHandler {
         .max(Comparator.comparing(Function.identity()))
         .orElse(new BigDecimal(100));
     this.changeThreshold = maxTriggerByRules.max(appProperties.getMaxAllowedPriceChangePercentage());
+    this.fakeTradeVolumeThreshold = appProperties.getFakeTradeVolumeThreshold();
   }
 
   @EventListener
@@ -126,7 +128,8 @@ public class EventHandler {
 
   public void checkTransactionVolumeStatus(DumpSignalEvent event) {
     try {
-      final NetworkContract lpAddress = NetworkContract.of(event.getToken().getDexLiquidityPool().getLiquidityPairAddress(), event.getNetwork());
+      final DexLiquidityPool liquidityPool = event.getToken().getDexLiquidityPool();
+      final NetworkContract lpAddress = NetworkContract.of(liquidityPool.getLiquidityPairAddress(), event.getNetwork());
       final Long monitoredWindow = event.getDetectedRule().getTimeWindowSec();
 
       final List<LPTransaction> trades = dexTransactionService.loadPoolTransactions(lpAddress)
@@ -140,16 +143,29 @@ public class EventHandler {
           .filter(t -> calculateDeviation(t.getPriceToInUsd(), event.getCurrentPrice()).compareTo(SIMILAR_PRICE_DEVIATION_FRACTION_THD) < 0)
           .toList();
 
-      boolean allTradesWithCurrentPriceAreLowVolume = !timeRelevantTrades.isEmpty() && timeRelevantTrades.stream().allMatch(t -> t.getVolumeInUsd().compareTo(ULTRA_LOW_VOLUME_THD) < 0);
-
-      if (allTradesWithCurrentPriceAreLowVolume) {
-        log.warn("Low volume trades trigger signal. Event:{}, trades: {}", event, trades);
-        event.setLowVolumeChange(true);
+      if (timeRelevantTrades.isEmpty()) {
+        log.warn("No trades in the time window for {}. Trades: {}", event, trades);
+        event.setWarning(true);
       } else {
-        event.setLowVolumeChange(false);
+        // get the sum of all trades in the time window
+        final BigDecimal totalVolume = timeRelevantTrades.stream()
+            .map(LPTransaction::getVolumeInUsd)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (isLowTradeVolume(totalVolume, liquidityPool)) {
+          log.warn("Low volume trades trigger signal. Event:{}, trades: {}", event, trades);
+          event.setLowVolumeChange(true);
+        }
       }
     } catch (Exception ex) {
       log.error("Error while checking last trades for {}.", event, ex);
+      event.setWarning(true);
     }
+  }
+
+  private boolean isLowTradeVolume(BigDecimal tradeVolume, DexLiquidityPool pool) {
+    if (fakeTradeVolumeThreshold == null) return false;
+    return tradeVolume.compareTo(fakeTradeVolumeThreshold) < 0;
+    // percentage threshold implementation
+    //    return calculatePercentage(tradeVolume, pool.getPoolLiquidityUsd()).compareTo(ULTRA_LOW_VOLUME_THD) < 0;
   }
 }

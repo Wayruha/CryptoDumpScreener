@@ -9,7 +9,6 @@ import org.springframework.stereotype.Component;
 import trade.shark.dumpscreener.event.ExceptionEvent;
 import trade.shark.dumpscreener.service.MetadataService;
 import trade.shark.dumpscreener.service.PriceScreenerService;
-import trade.shark.dumpscreener.service.dexscreener.DexScreenerClientException;
 
 import java.util.concurrent.TimeUnit;
 
@@ -30,7 +29,7 @@ public class Bootstrap {
       metadataService.updateMetadata();
     } catch (Exception ex) {
       log.error("Exception during metadata update", ex);
-      if(metadataService.getLastUpdate() == null) {
+      if (metadataService.getLastUpdate() == null) {
         log.error("Metadata is not initialized, exiting... Please restart the application.");
         System.exit(1);
       } else {
@@ -39,7 +38,6 @@ public class Bootstrap {
     }
   }
 
-  @Async
   @Scheduled(fixedRateString = "${screener.screeningRateSec}", initialDelayString = "${screener.initialDelaySec}", timeUnit = TimeUnit.SECONDS)
   public void startScreening() {
     try {

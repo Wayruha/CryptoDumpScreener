@@ -31,7 +31,7 @@ public class TgNotificationService {
       *${symbol}/${priceChangePercent}%*
       Network: `${tokenNetwork}`
       Address: [${tokenAddress}](${tokenURL})
-      
+            
       Name: *${tokenName}*
       TimeWindow: ${detectionTimeWindow} sec
       MarketCap: ${tokenMarketCap}$
@@ -70,11 +70,13 @@ public class TgNotificationService {
     final StringBuilder bldr = new StringBuilder();
     final Optional<DexLiquidityPool> dexLP = ofNullable(token.getDexLiquidityPool());
 
-    if (event.getLowVolumeChange() == null) {
+    if (event.isWarning()) {
       bldr.append(WARNING_MSG_MARKER);
-    } else if (event.getLowVolumeChange()) {
+    }
+    if (event.isLowVolumeChange()) {
       bldr.append(LOW_VOLUME_MSG_MARKER);
     }
+
     bldr.append(SIGNAL_MSG_TEMPLATE.replace("${symbol}", token.getSymbol().toUpperCase())
         .replace("${priceChangePercent}", getFormattedSpread(event.getChangePercentage()))
         .replace("${tokenAddress}", token.getContractAddress(network))

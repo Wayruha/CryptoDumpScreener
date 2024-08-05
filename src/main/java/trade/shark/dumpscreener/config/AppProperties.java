@@ -30,6 +30,7 @@ public class AppProperties {
   private BigDecimal marketCap;
   private BigDecimal marketCapMax;
   private BigDecimal liquidity;
+  private BigDecimal fakeTradeVolumeThreshold;
 
   @Data
   public static class CoinGecko {

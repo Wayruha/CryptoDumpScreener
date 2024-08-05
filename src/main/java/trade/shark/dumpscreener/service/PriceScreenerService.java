@@ -84,7 +84,7 @@ public class PriceScreenerService {
    * @param rule dump detection rule
    */
   private List<DumpSignalEvent> detectByRule(MonitoringRule rule) {
-    if (priceMaps.isEmpty()) {
+    if (priceMaps.size() < 2) {
       return List.of();
     }
     final List<DumpSignalEvent> events = new ArrayList<>();

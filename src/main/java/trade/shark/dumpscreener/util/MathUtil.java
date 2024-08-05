@@ -44,9 +44,14 @@ public class MathUtil {
     return amount.setScale(1, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString();
   }
 
-  public static BigDecimal calculateFraction(BigDecimal freeBalance, BigDecimal fraction) {
-    if (isNull(freeBalance)) return BigDecimal.ZERO;
-    return freeBalance.multiply(fraction.divide(PERCENTAGE_100, COIN_SAFE_MC));
+  public static BigDecimal calculateFractionFromFull(BigDecimal full, BigDecimal fraction) {
+    if (isNull(full)) return BigDecimal.ZERO;
+    return full.multiply(fraction.divide(PERCENTAGE_100, COIN_SAFE_MC));
+  }
+
+  public static BigDecimal calculatePercentage(BigDecimal part, BigDecimal full) {
+    if (isNull(full)) return BigDecimal.ZERO;
+    return part.divide(full, MathContext.DECIMAL32).multiply(PERCENTAGE_100);
   }
 
   public static String formatPrice(BigDecimal num) {
@@ -65,10 +70,16 @@ public class MathUtil {
         .subtract(PERCENTAGE_100);
   }
 
+  // Calculate the symmetric percentage difference
   public static BigDecimal calculateDeviation(BigDecimal n1, BigDecimal n2) {
-    final BigDecimal max = n1.max(n2);
-    final BigDecimal min = n1.min(n2);
-    return max.subtract(min).divide(max, 3, RoundingMode.HALF_UP);
+    if (n1 == null || n2 == null) {
+      throw new IllegalArgumentException("Values must not be null");
+    }
+
+    final BigDecimal difference = n1.subtract(n2).abs();
+    final BigDecimal sum = n1.add(n2);
+    final BigDecimal average = sum.divide(BigDecimal.valueOf(2), MathContext.DECIMAL32);
+    return difference.divide(average, MathContext.DECIMAL32).multiply(BigDecimal.valueOf(100));
   }
 
   public static BigDecimal toBigDecimal(String num) {

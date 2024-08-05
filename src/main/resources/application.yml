@@ -11,6 +11,7 @@ screener:
   metadataUpdateRateSec: 86400
   screeningRateSec: 20
   initialDelaySec: 90
+  fakeTradeVolumeThreshold: 500
   cryptoCompare:
     apiKey: ${CRYPTO_COMPARE_API_KEY}
   coingecko:

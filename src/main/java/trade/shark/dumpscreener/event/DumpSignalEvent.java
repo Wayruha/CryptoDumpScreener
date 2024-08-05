@@ -21,7 +21,8 @@ public class DumpSignalEvent {
   private BigDecimal changePercentage;
   private MonitoringRule detectedRule;
   private Map<CentralizedExchange, CexSpread> cexOptions;
-  private Boolean lowVolumeChange;
+  private boolean lowVolumeChange;
+  private boolean warning;
 
   public DumpSignalEvent(Token token, Network network, BigDecimal price, BigDecimal change, BigDecimal changePercentage, MonitoringRule detectedRule) {
     this.timestamp = LocalDate.now();

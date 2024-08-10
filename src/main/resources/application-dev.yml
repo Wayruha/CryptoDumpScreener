@@ -3,7 +3,7 @@ logging:
 
 screener:
   networks: ETHEREUM,ARBITRUM,POLYGON,BSC,BASE,SOLANA
-  volume24H: 10000
+  volume24H: 15000
   liquidity: 50000
   marketCap: 100000
   marketCapMax: 400000000

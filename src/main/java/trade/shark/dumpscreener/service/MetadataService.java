@@ -257,8 +257,10 @@ public class MetadataService {
               List<PoolMetadata> filteredPools = entry.getValue().stream()
                       .filter(poolMetadata -> {
                         if (poolMetadata.getChainId() == null || !supportedChains.contains(poolMetadata.getChainId())) return false;
-                        if (properties.getLiquidity() != null &&
-                                (poolMetadata.getLiquidity() == null || properties.getLiquidity().compareTo(poolMetadata.getLiquidity().getUsd()) > 0))
+                        final PoolMetadata.Liquidity liq = poolMetadata.getLiquidity();
+                        if (properties.getLiquidityMin() != null && (liq == null || liq.getUsd().compareTo(properties.getLiquidityMin()) < 0))
+                          return false;
+                        if (properties.getLiquidityMax() != null && (liq == null || liq.getUsd().compareTo(properties.getLiquidityMax()) > 0))
                           return false;
                         if (properties.getVolume24h() != null &&
                                 (poolMetadata.getVolume().get("h24") == null || properties.getVolume24h().compareTo(poolMetadata.getVolume().get("h24")) > 0))

@@ -29,7 +29,8 @@ public class AppProperties {
   private BigDecimal volume24h;
   private BigDecimal marketCap;
   private BigDecimal marketCapMax;
-  private BigDecimal liquidity;
+  private BigDecimal liquidityMin;
+  private BigDecimal liquidityMax;
   private BigDecimal fakeTradeVolumeThreshold;
 
   @Data

@@ -105,6 +105,6 @@ public class TgNotificationService {
   }
 
   private static String buildTokenUrl(Token token, Network network) {
-    return "https://dexscreener.com/" + network.toString().toLowerCase() + "/" + token.getContractAddress(network);
+    return "https://dexscreener.com/" + network.getDexScreenerName().toLowerCase() + "/" + token.getContractAddress(network);
   }
 }

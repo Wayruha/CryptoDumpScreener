@@ -15,11 +15,13 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -35,6 +37,7 @@ public class PriceScreenerService {
   private final List<PriceSnapshot> priceMaps = new LinkedList<>();
   private final Long priceMapsToMaintain;
   private final PriceProvider priceProvider;
+  private Collection<DumpSignalEvent> previousSignals;
 
   public PriceScreenerService(MetadataService metadataService,
                               ApplicationEventPublisher eventPublisher,
@@ -49,6 +52,7 @@ public class PriceScreenerService {
         .max(Long::compareTo)
         .orElse(0L);
     this.priceMapsToMaintain = Math.ceilDiv(longestTimeWindow, properties.getScreeningRateSec()) + 1;
+    this.previousSignals = Collections.emptySet();
   }
 
   /**
@@ -75,7 +79,14 @@ public class PriceScreenerService {
             Function.identity(),
             (e1, e2) -> e1.getDetectedRule().compareTo(e2.getDetectedRule()) >= 0 ? e1 : e2))
         .values();
-    distinctEvents.forEach(eventPublisher::publishEvent);
+    distinctEvents.forEach(event -> {
+      if (previousSignals.contains(event)) {
+        log.warn("Event has already been detected reported: {}", event);
+        return;
+      }
+      eventPublisher.publishEvent(event);
+    });
+    this.previousSignals = distinctEvents;
   }
 
   /**
@@ -88,8 +99,11 @@ public class PriceScreenerService {
       return List.of();
     }
     final List<DumpSignalEvent> events = new ArrayList<>();
-    final Map<NetworkContract, BigDecimal> old = getOldPriceMapForRule(rule);
+    final PriceSnapshot oldPriceMapForRule = getOldPriceMapForRule(rule);
+    final Map<NetworkContract, BigDecimal> old = Optional.ofNullable(oldPriceMapForRule).map(PriceSnapshot::getPrices).orElse(null);
     final Map<NetworkContract, BigDecimal> current = priceMaps.getLast().getPrices();
+    if (old == null) return Collections.emptyList();
+    log.info("RuleWindow {} against {}-{}", rule.getTimeWindowSec(), getIdx(priceMaps, oldPriceMapForRule), oldPriceMapForRule);
 
     old.keySet().forEach(contract -> {
       final BigDecimal oldPrice = old.get(contract);
@@ -110,7 +124,19 @@ public class PriceScreenerService {
         events.add(event);
       }
     });
+    if (!events.isEmpty()) {
+      log.info("Detected {} dump signals for rule {}", events.size(), rule);
+    }
     return events;
+  }
+
+  private static <T> int getIdx(List<T> list, T item) {
+    for (int i = 0; i < list.size(); i++) {
+      if (list.get(i).equals(item)) {
+        return i;
+      }
+    }
+    return -1;
   }
 
   /**
@@ -118,13 +144,14 @@ public class PriceScreenerService {
    *
    * @param rule dump detection rule
    */
-  private Map<NetworkContract, BigDecimal> getOldPriceMapForRule(MonitoringRule rule) {
+  private PriceSnapshot getOldPriceMapForRule(MonitoringRule rule) {
     if (priceMaps.isEmpty()) {
-      return new HashMap<>();
+      return null;
     }
     final int timeWindowIndex = priceMaps.size() - 1 - (int) Math.ceilDiv(rule.getTimeWindowSec(), properties.getScreeningRateSec());
-    final int boundedIndex = Math.min(Math.max(0, timeWindowIndex), priceMaps.size() - 1);
-    return priceMaps.get(boundedIndex).getPrices();
+    if (timeWindowIndex < 0) return null;
+    final int boundedIndex = Math.min(timeWindowIndex, priceMaps.size() - 1);
+    return priceMaps.get(boundedIndex);
   }
 
   public List<NetworkContract> getPrimaryTokenContracts(List<Token> tokens) {

@@ -1,17 +1,16 @@
 package trade.shark.dumpscreener.domain;
 
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
 import trade.shark.dumpscreener.enums.Network;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.Objects.requireNonNull;
 
 @Getter
-@EqualsAndHashCode
 @ToString
 public class NetworkContract {
   private static final Map<String, NetworkContract> CONTRACTS_CACHE = new ConcurrentHashMap<>();
@@ -41,4 +40,20 @@ public class NetworkContract {
     return network == Network.SOLANA ? contractAddress : contractAddress.toUpperCase();
   }
 
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (!(o instanceof NetworkContract that)) return false;
+
+    if (!Objects.equals(getContractAddress(), that.getContractAddress()))
+      return false;
+    return network == that.network;
+  }
+
+  @Override
+  public int hashCode() {
+    int result = getContractAddress() != null ? getContractAddress().hashCode() : 0;
+    result = 31 * result + (network != null ? network.hashCode() : 0);
+    return result;
+  }
 }

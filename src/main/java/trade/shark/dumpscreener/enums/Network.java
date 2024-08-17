@@ -10,7 +10,7 @@ import java.util.stream.Stream;
 @Getter
 public enum Network {
   ETHEREUM("ethereum", "ETH", Chain.ETHEREUM, "ethereum", "eth"),
-  ARBITRUM("arbitrum", "ARB", Chain.ARBITRUM, "arbitrum", "arbitrum"),
+  ARBITRUM("arbitrum-one", "ARB", Chain.ARBITRUM, "arbitrum", "arbitrum"),
   SOLANA("solana", "SOL", null, "solana", "solana"),
   AVAX("avalanche", "AVAX", Chain.AVALANCHE, "avalanche", "avax"),
   POLYGON("polygon-pos", "MATIC", Chain.POLYGON, "polygon", "polygon_pos"),

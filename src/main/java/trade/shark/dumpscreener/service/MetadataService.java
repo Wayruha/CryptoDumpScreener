@@ -3,6 +3,7 @@ package trade.shark.dumpscreener.service;
 import com.litesoftwares.coingecko.CoinGeckoApiClient;
 import com.litesoftwares.coingecko.domain.Coins.CoinList;
 import com.litesoftwares.coingecko.domain.Coins.CoinPriceData;
+import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -67,6 +68,11 @@ public class MetadataService {
   //duplication of data for easy access
   private final Map<NetworkContract, Token> duplicateCoinsMap = new HashMap<>();
   private final Map<Network, List<NetworkContract>> contractsByNetworkMap = new HashMap<>();
+
+  @PostConstruct
+  public void postConstruct() {
+    log.info("Metadataservice bean is being created");
+  }
 
   /**
    * Method for fetching and updating tokens metadata
@@ -251,7 +257,8 @@ public class MetadataService {
         .flatMap(token -> token.getContracts().stream().map(contract -> new AbstractMap.SimpleEntry<>(contract, token)))
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (oldValue, newValue) -> oldValue));
 
-    final Map<NetworkContract, List<PoolMetadata>> filteredMap = dexscreenerClient.loadLiquidityPools(tokensMap.keySet())
+    final Map<NetworkContract, List<PoolMetadata>> tokenPools = dexscreenerClient.loadTokenPools(tokensMap.keySet());
+    final Map<NetworkContract, List<PoolMetadata>> filteredMap = tokenPools
             .entrySet().stream()
             .map(entry -> {
               List<PoolMetadata> filteredPools = entry.getValue().stream()
@@ -273,7 +280,8 @@ public class MetadataService {
             .filter(entry -> !entry.getValue().isEmpty())
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     final Map<NetworkContract, PoolMetadata> contractMetadataMap = dexscreenerClient.leaveOnlyBiggestPoolPerContract(filteredMap);
-
+    //leave only on pool if token is present on different chains
+    final AtomicInteger atomicInteger = new AtomicInteger(1);
     contractMetadataMap.forEach((contract, md) -> {
       final Token token = tokensMap.get(contract);
       if (token.getDexLiquidityPool() == null ||
@@ -281,10 +289,12 @@ public class MetadataService {
                       token.getDexLiquidityPool().getPoolLiquidityUsd().compareTo(md.getLiquidity().getUsd()) < 0) {
         final DexLiquidityPool dexPool = DexLiquidityPool.builder()
                 .dexName(md.getDexId())
+                .network(Network.getByDexScreenerName(md.getChainId()))
                 .liquidityPairAddress(md.getPairAddress())
                 .liquidityPoolPair(new TradePair(md.getBaseToken().getSymbol(), md.getQuoteToken().getSymbol()))
                 .poolLiquidityUsd(md.getLiquidity().getUsd())
                 .build();
+        atomicInteger.incrementAndGet();
         token.setDexLiquidityPool(dexPool);
         token.setPrimaryContract(contract);
       }

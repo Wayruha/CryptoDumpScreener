@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import static trade.shark.dumpscreener.util.MathUtil.calculateDeviation;
+import static trade.shark.dumpscreener.util.MathUtil.calculateDeviationPercent;
 import static trade.shark.dumpscreener.util.MathUtil.calculateSpread;
 
 @Slf4j
@@ -35,7 +35,7 @@ import static trade.shark.dumpscreener.util.MathUtil.calculateSpread;
 public class EventHandler {
   private static final int RElEVANT_TRADES_TIMEWINDOW_MILTIPLIER = 2;
   private static final int MAX_RELEVANT_TRADES = 30;
-  private static final BigDecimal SIMILAR_PRICE_DEVIATION_FRACTION_THD = new BigDecimal("0.05");
+  private static final BigDecimal SIMILAR_PRICE_DEVIATION_PERCETAGE_THD = new BigDecimal("5");
 
   private final AppProperties appProperties;
   private final CexService cexService;
@@ -140,7 +140,7 @@ public class EventHandler {
       final ZonedDateTime lastTradeDate = trades.get(0).getBlockTimestamp();
       final List<LPTransaction> timeRelevantTrades = trades.stream()
           .filter(t -> Duration.between(t.getBlockTimestamp(), lastTradeDate).getSeconds() < monitoredWindow * RElEVANT_TRADES_TIMEWINDOW_MILTIPLIER)
-          .filter(t -> calculateDeviation(t.getPriceToInUsd(), event.getCurrentPrice()).compareTo(SIMILAR_PRICE_DEVIATION_FRACTION_THD) < 0)
+          .filter(t -> calculateDeviationPercent(t.getPriceToInUsd(), event.getCurrentPrice()).compareTo(SIMILAR_PRICE_DEVIATION_PERCETAGE_THD) < 0)
           .toList();
 
       if (timeRelevantTrades.isEmpty()) {

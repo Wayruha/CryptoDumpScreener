@@ -1,6 +1,7 @@
 package trade.shark.dumpscreener.event;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import trade.shark.dumpscreener.config.MonitoringRule;
 import trade.shark.dumpscreener.domain.CexSpread;
 import trade.shark.dumpscreener.domain.Token;
@@ -12,6 +13,7 @@ import java.time.LocalDate;
 import java.util.Map;
 
 @Data
+@EqualsAndHashCode(of = {"token", "network", "detectedRule", "currentPrice"})
 public class DumpSignalEvent {
   private final LocalDate timestamp;
   private Token token;

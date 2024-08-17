@@ -71,7 +71,7 @@ public class MathUtil {
   }
 
   // Calculate the symmetric percentage difference
-  public static BigDecimal calculateDeviation(BigDecimal n1, BigDecimal n2) {
+  public static BigDecimal calculateDeviationPercent(BigDecimal n1, BigDecimal n2) {
     if (n1 == null || n2 == null) {
       throw new IllegalArgumentException("Values must not be null");
     }

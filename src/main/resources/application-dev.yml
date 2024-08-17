@@ -2,9 +2,10 @@ logging:
   config: classpath:logback-dev.xml
 
 screener:
-  networks: ETHEREUM,ARBITRUM,POLYGON,BSC,BASE,SOLANA
-  volume24H: 15000
-  liquidity: 50000
+  networks: ETHEREUM,ARBITRUM,POLYGON,BSC,BASE,SOLANA,AVAX
+#  volume24H: 1000
+  liquidityMin: 50000
+  liquidityMax: 200000
   marketCap: 100000
   marketCapMax: 400000000
 
